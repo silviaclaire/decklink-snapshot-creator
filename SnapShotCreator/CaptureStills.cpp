@@ -63,6 +63,56 @@ enum {
 	kPixelFormatString
 };
 
+std::string dump_headers(const httplib::Headers &headers) {
+	std::string s;
+	char buf[BUFSIZ];
+
+	for (auto it = headers.begin(); it != headers.end(); ++it) {
+		const auto &x = *it;
+		snprintf(buf, sizeof(buf), "%s: %s\n", x.first.c_str(), x.second.c_str());
+		s += buf;
+	}
+
+	return s;
+}
+
+std::string log(const httplib::Request &req, const httplib::Response &res) {
+	std::string s;
+	char buf[BUFSIZ];
+
+	s += "--------------------------------\n";
+
+	snprintf(buf, sizeof(buf), "%s %s %s", req.method.c_str(),
+		req.version.c_str(), req.path.c_str());
+	s += buf;
+
+	std::string query;
+	for (auto it = req.params.begin(); it != req.params.end(); ++it) {
+		const auto &x = *it;
+		snprintf(buf, sizeof(buf), "%c%s=%s",
+			(it == req.params.begin()) ? '?' : '&', x.first.c_str(),
+			x.second.c_str());
+		query += buf;
+	}
+	snprintf(buf, sizeof(buf), "%s\n", query.c_str());
+	s += buf;
+
+	//s += dump_headers(req.headers);
+
+	s += "--------------------------------\n";
+
+	snprintf(buf, sizeof(buf), "%d %s\n", res.status, res.version.c_str());
+	s += buf;
+	s += dump_headers(res.headers);
+	s += "\n";
+
+	if (!res.body.empty()) { s += res.body; }
+
+	s += "\n";
+
+	return s;
+}
+
 void CaptureStills(DeckLinkInputDevice* deckLinkInput, const int captureInterval, const int framesToCapture,
 	const std::string& captureDirectory, const std::string& filenamePrefix, const std::string& imageFormat)
 {
@@ -141,7 +191,7 @@ void CaptureStills(DeckLinkInputDevice* deckLinkInput, const int captureInterval
 
 				if ((captureFrameCount / captureInterval) >= framesToCapture)
 				{
-					fprintf(stderr, "Completed Capture\n");
+					fprintf(stderr, "Capture completed\n");
 					captureRunning = false;
 				}
 			}
@@ -295,23 +345,6 @@ void DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, const std::vector<
 
 int main(int argc, char* argv[])
 {
-	httplib::Server svr;
-
-	if (!svr.is_valid()) {
-		printf("server has an error...\n");
-		return -1;
-	}
-	printf("server started.\n");
-	svr.Get("/hello", [](const httplib::Request & /*req*/, httplib::Response &res) {
-		res.set_content("{\"result\":\"Hello\"}", "application/json");
-	});
-	svr.Get("/stop", [&](const httplib::Request& req, httplib::Response& res) {
-		printf("server stopped.\n");
-		res.set_content("{\"result\":\"OK\"}", "application/json");
-		svr.stop();
-	});
-	svr.listen("localhost", 8080);
-
 	// Configuration Flags
 	bool						displayHelp = false;
 	int							deckLinkIndex = -1;
@@ -319,6 +352,7 @@ int main(int argc, char* argv[])
 	int							framesToCapture = 1;
 	int							captureInterval = 1;
 	int							pixelFormatIndex = 0;
+	int							portNo = -1;
 	bool						enableFormatDetection = false;
 	std::string					filenamePrefix;
 	std::string					captureDirectory;
@@ -329,7 +363,6 @@ int main(int argc, char* argv[])
 	bool						supportsFormatDetection = false;
 
 	std::thread					captureStillsThread;
-	std::thread					keyPressThread;
 
 	IDeckLinkIterator*			deckLinkIterator = NULL;
 	IDeckLink*					deckLink = NULL;
@@ -339,6 +372,13 @@ int main(int argc, char* argv[])
 	std::string					selectedDisplayModeName;
 	std::vector<std::string>	deckLinkDeviceNames;
 	std::string					imageFormat = "png";
+
+	// Initialize server
+	httplib::Server 			svr;
+	if (!svr.is_valid()) {
+		fprintf(stderr, "Server initialization failed.\n");
+		return 1;
+	}
 
 	// Initialize COM on this thread
 	result = CoInitializeEx(NULL, COINIT_MULTITHREADED);
@@ -364,20 +404,23 @@ int main(int argc, char* argv[])
 		else if (strcmp(argv[i], "-m") == 0)
 			displayModeIndex = atoi(argv[++i]);
 
-		else if (strcmp(argv[i], "-i") == 0)
-			captureInterval = atoi(argv[++i]);
+		// else if (strcmp(argv[i], "-i") == 0)
+		// 	captureInterval = atoi(argv[++i]);
 
-		else if (strcmp(argv[i], "-n") == 0)
-			framesToCapture = atoi(argv[++i]);
+		// else if (strcmp(argv[i], "-n") == 0)
+		// 	framesToCapture = atoi(argv[++i]);
 
-		else if (strcmp(argv[i], "-p") == 0)
-			pixelFormatIndex = atoi(argv[++i]);
+		// else if (strcmp(argv[i], "-p") == 0)
+		// 	pixelFormatIndex = atoi(argv[++i]);
 
 		else if (strcmp(argv[i], "-f") == 0)
 			filenamePrefix = argv[++i];
 
 		else if (strcmp(argv[i], "-e") == 0)
 			imageFormat = argv[++i];
+
+		else if (strcmp(argv[i], "-p") == 0)
+			portNo = atoi(argv[++i]);
 
 		else if ((strcmp(argv[i], "?") == 0) || (strcmp(argv[i], "-h") == 0))
 			displayHelp = true;
@@ -402,6 +445,12 @@ int main(int argc, char* argv[])
 	if (deckLinkIndex < 0)
 	{
 		fprintf(stderr, "You must select a device\n");
+		displayHelp = true;
+	}
+
+	if ((portNo > 65535) || (portNo < 2000))
+	{
+		fprintf(stderr, "You must select a port number between 2000 - 65535\n");
 		displayHelp = true;
 	}
 
@@ -545,7 +594,7 @@ int main(int argc, char* argv[])
 		goto bail;
 	}
 
-	// Start capturing
+	// Try capturing
 	result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
 	if (result != S_OK)
 		goto bail;
@@ -567,24 +616,49 @@ int main(int argc, char* argv[])
 		filenamePrefix.c_str(),
 		captureDirectory.c_str()
 	);
-
-	fprintf(stderr, "Starting capture, press <RETURN> to stop/exit\n");
-
-	// Start thread for capture processing
-	captureStillsThread = std::thread([&] {
-		CaptureStills(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
-	});
-
-	keyPressThread = std::thread([&] {
-		getchar();
-		selectedDeckLinkInput->CancelCapture();
-	});
-
-	// Wait on return of main capture stills thread
-	captureStillsThread.join();
+	// Stop capturing on successful try
 	selectedDeckLinkInput->StopCapture();
+	fprintf(stderr, "System all green.\n");
 
-	keyPressThread.join();
+	// create a snapshot
+	svr.Get("/create", [&](const httplib::Request & /*req*/, httplib::Response &res) {
+		fprintf(stderr, "================================\n");
+		// Start capturing
+		result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
+		if (result != S_OK)
+			res.set_content("{\"result\":\"Failed to start capture\"}", "application/json");
+		// Start thread for capture processing
+		captureStillsThread = std::thread([&] {
+			CaptureStills(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
+		});
+		// Wait on return of main capture stills thread
+		captureStillsThread.join();
+		selectedDeckLinkInput->StopCapture();
+		res.set_content("{\"result\":\"Completed\"}", "application/json");
+	});
+
+	// stop server
+	svr.Get("/stop", [&](const httplib::Request& req, httplib::Response& res) {
+		selectedDeckLinkInput->CancelCapture();
+		res.set_content("{\"result\":\"Capture canceled. Stopping server...\"}", "application/json");
+		svr.stop();
+	});
+
+	// if server error occures, return with response
+	svr.set_error_handler([](const httplib::Request & /*req*/, httplib::Response &res) {
+		const char *fmt = "{\"result\":\"ERROR\", \"status\":%d}";
+		char buf[BUFSIZ];
+		snprintf(buf, sizeof(buf), fmt, res.status);
+		res.set_content(buf, "application/json");
+	});
+
+	// set logger for request/response
+	svr.set_logger([](const httplib::Request &req, const httplib::Response &res) {
+		printf("%s", log(req, res).c_str());
+	});
+
+	fprintf(stderr, "Server started at port %d.\n", portNo);
+	svr.listen("localhost", portNo);
 
 	// All Okay.
 	exitStatus = 0;
