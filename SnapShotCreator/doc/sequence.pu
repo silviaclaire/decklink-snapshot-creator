@@ -12,12 +12,14 @@ activate ConfigManager
 activate Main
 
 Main -> Main : StartCapture()
+Main -> Main : StopCapture()
 Main -> Main : サーバ状態更新
 ConfigManager -> Main : [A]リクエスト 起動完了確認
 Main --> ConfigManager : [A]レスポンス 起動完了確認
 loop
     ConfigManager -> Main : [B]リクエスト スナップショット生成
     Main -> Main : サーバ状態更新
+    Main -> Main : StartCapture()
     Main -> Worker : スレッド作成
     activate Worker
     alt
@@ -27,6 +29,7 @@ loop
     Worker -> Worker : CaptureStills()
     Worker --> Main : 処理結果
     deactivate Worker
+    Main -> Main : StopCapture()
     Main -> Main : サーバ状態更新
     Main --> ConfigManager : [B-a]レスポンス スナップショット生成
 end
