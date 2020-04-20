@@ -167,6 +167,7 @@
     <ClInclude Include="ImageWriter.h" />
     <ClInclude Include="platform.h" />
     <ClInclude Include="include\httplib.h" />
+    <ClInclude Include="lib_json\json_tool.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Bgr24VideoFrame.cpp" />
@@ -185,6 +186,9 @@
     <ClCompile Include="DeckLinkInputDevice.cpp" />
     <ClCompile Include="ImageWriterWin.cpp" />
     <ClCompile Include="platform.cpp" />
+    <ClCompile Include="lib_json\json_reader.cpp" />
+    <ClCompile Include="lib_json\json_value.cpp" />
+    <ClCompile Include="lib_json\json_writer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Midl Include="include\DeckLinkAPI.idl">

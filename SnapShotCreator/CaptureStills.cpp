@@ -30,6 +30,7 @@
 #include <httplib.h>
 #include <Windows.h>
 #include <stdio.h>
+#include <json/json.h>
 
 #include <condition_variable>
 #include <mutex>
@@ -61,6 +62,14 @@ const std::vector<std::tuple<BMDPixelFormat, std::string>> kSupportedPixelFormat
 enum {
 	kPixelFormatValue = 0,
 	kPixelFormatString
+};
+
+// Supported image format list
+const std::list<std::string> supportedImageFormats = {
+	"bmp",
+	"png",
+	"tiff",
+	"jpeg",
 };
 
 std::string dump_headers(const httplib::Headers &headers) {
@@ -292,7 +301,7 @@ void DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, const std::vector<
 		}
 	}
 
-	fprintf(stderr, "    -p <pixelformat>: ");
+	fprintf(stderr, "    -f <pixelformat>: ");
 
 	if (selectedDeckLinkInput == NULL)
 		fprintf(stderr, "\n        No DeckLink device selected\n");
@@ -334,14 +343,48 @@ void DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, const std::vector<
 	fprintf(stderr,
 		"    -n <frames>          Number of frames to capture (default is 1)\n"
 		"    -i <interval>        Capture frame interval rate (default is 1 - every frame)\n"
-		"    -f <prefix>          Filename prefix (default is \"image_\")\n"
-		"    <capturedirectory>\n"
-		"\n"
+		"    -p <port>            Server port to be exposed for requests (2000 - 65535)\n"
 		"Capture image stills to a specified directory. eg:\n"
 		"\n"
-		"    CaptureStills.exe -d 0 -m 2 -n 10 -i 60 C:\\Temp\\\n\n"
+		"    CaptureStills.exe -d 0 -m 23 -p 8080"
 	);
 }
+
+bool validateRequestParams(const std::string captureDirectory, const std::string filenamePrefix, const std::string imageFormat)
+{
+	// validate captureDirectory
+	if (captureDirectory.empty())
+	{
+		fprintf(stderr, "You must set a capture directory\n");
+		return false;
+	}
+	else if (!IsPathDirectory(captureDirectory))
+	{
+		fprintf(stderr, "Invalid directory specified:%s\n", captureDirectory.c_str());
+		return false;
+	}
+
+	// validate filenamePrefix
+	if (filenamePrefix.empty())
+	{
+		fprintf(stderr, "You must set a filename prefix\n");
+		return false;
+	}
+
+	// validate imageFormat
+	if (imageFormat.empty())
+	{
+		fprintf(stderr, "You must set an image format\n");
+		return false;
+	}
+	else if (std::find(supportedImageFormats.begin(), supportedImageFormats.end(), imageFormat) == supportedImageFormats.end())
+	{
+		fprintf(stderr, "Invalid image format specified:%s\n", imageFormat.c_str());
+		return false;
+	}
+	return true;
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -354,8 +397,6 @@ int main(int argc, char* argv[])
 	int							pixelFormatIndex = 0;
 	int							portNo = -1;
 	bool						enableFormatDetection = false;
-	std::string					filenamePrefix;
-	std::string					captureDirectory;
 
 	HRESULT						result;
 	int							exitStatus = 1;
@@ -371,7 +412,6 @@ int main(int argc, char* argv[])
 	BMDDisplayMode				selectedDisplayMode = bmdModeNTSC;
 	std::string					selectedDisplayModeName;
 	std::vector<std::string>	deckLinkDeviceNames;
-	std::string					imageFormat = "png";
 
 	// Initialize server
 	httplib::Server 			svr;
@@ -404,42 +444,20 @@ int main(int argc, char* argv[])
 		else if (strcmp(argv[i], "-m") == 0)
 			displayModeIndex = atoi(argv[++i]);
 
-		// else if (strcmp(argv[i], "-i") == 0)
-		// 	captureInterval = atoi(argv[++i]);
+		else if (strcmp(argv[i], "-i") == 0)
+			captureInterval = atoi(argv[++i]);
 
-		// else if (strcmp(argv[i], "-n") == 0)
-		// 	framesToCapture = atoi(argv[++i]);
-
-		// else if (strcmp(argv[i], "-p") == 0)
-		// 	pixelFormatIndex = atoi(argv[++i]);
+		else if (strcmp(argv[i], "-n") == 0)
+			framesToCapture = atoi(argv[++i]);
 
 		else if (strcmp(argv[i], "-f") == 0)
-			filenamePrefix = argv[++i];
-
-		else if (strcmp(argv[i], "-e") == 0)
-			imageFormat = argv[++i];
+			pixelFormatIndex = atoi(argv[++i]);
 
 		else if (strcmp(argv[i], "-p") == 0)
 			portNo = atoi(argv[++i]);
 
 		else if ((strcmp(argv[i], "?") == 0) || (strcmp(argv[i], "-h") == 0))
 			displayHelp = true;
-
-		else if (i == argc - 1)
-		{
-			captureDirectory = argv[i];
-		}
-	}
-
-	if (captureDirectory.empty())
-	{
-		fprintf(stderr, "You must set a capture directory\n");
-		displayHelp = true;
-	}
-	else if (!IsPathDirectory(captureDirectory))
-	{
-		fprintf(stderr, "Invalid directory specified\n");
-		displayHelp = true;
 	}
 
 	if (deckLinkIndex < 0)
@@ -583,11 +601,6 @@ int main(int argc, char* argv[])
 		displayHelp = true;
 	}
 
-	if (filenamePrefix.empty())
-	{
-		filenamePrefix = "image_";
-	}
-
 	if (displayHelp)
 	{
 		DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection);
@@ -605,36 +618,84 @@ int main(int argc, char* argv[])
 		" - Video mode: %s\n"
 		" - Pixel format: %s\n"
 		" - Frames to capture: %d\n"
-		" - Capture interval: %d\n"
-		" - Filename prefix: %s\n"
-		" - Capture directory: %s\n",
+		" - Capture interval: %d\n",
 		selectedDeckLinkInput->GetDeviceName().c_str(),
 		selectedDisplayModeName.c_str(),
 		std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex]).c_str(),
 		framesToCapture,
-		captureInterval,
-		filenamePrefix.c_str(),
-		captureDirectory.c_str()
+		captureInterval
 	);
 	// Stop capturing on successful try
 	selectedDeckLinkInput->StopCapture();
 	fprintf(stderr, "System all green.\n");
 
 	// create a snapshot
-	svr.Get("/create", [&](const httplib::Request & /*req*/, httplib::Response &res) {
+	svr.Post("/", [&](const httplib::Request &req, httplib::Response &res) {
+		std::string 							rawJson;
+		Json::Value 							root;
+		Json::CharReaderBuilder 				jsonBuilder;
+		const std::unique_ptr<Json::CharReader>	jsonReader(jsonBuilder.newCharReader());
+		JSONCPP_STRING 							err;
+
+		std::string 							captureDirectory;
+		std::string 							filenamePrefix;
+		std::string 							imageFormat;
+
 		fprintf(stderr, "================================\n");
-		// Start capturing
-		result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
-		if (result != S_OK)
-			res.set_content("{\"result\":\"Failed to start capture\"}", "application/json");
-		// Start thread for capture processing
-		captureStillsThread = std::thread([&] {
-			CaptureStills(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
-		});
-		// Wait on return of main capture stills thread
-		captureStillsThread.join();
-		selectedDeckLinkInput->StopCapture();
-		res.set_content("{\"result\":\"Completed\"}", "application/json");
+		rawJson = req.body;
+		fprintf(stderr, "%s\n", rawJson.c_str());
+
+		// Parse JSON body
+		bool isParsable = jsonReader->parse(rawJson.c_str(), rawJson.c_str() + rawJson.length(), &root, &err);
+		if (!isParsable)
+		{
+			char *fmt = R"("{"result":"ERROR", "message":"Failed to parse JSON body:%s"}")";
+			char buf[BUFSIZ];
+			snprintf(buf, sizeof(buf), fmt, err.c_str());
+			res.set_content(buf, "application/json");
+		}
+		else
+		{
+			// Get parameters
+			captureDirectory = root["data"].get("outputDirectory", "").asCString();
+			filenamePrefix = root["data"].get("filenamePrefix", "").asCString();
+			imageFormat = root["data"].get("imageFormat", "").asCString();
+
+			if (!validateRequestParams(captureDirectory, filenamePrefix, imageFormat))
+			{
+				res.set_content("{\"result\":\"Invalid request\"}", "application/json");
+			}
+			else
+			{
+				// Print the request params
+				fprintf(stderr, "Capturing snapshot:\n"
+					" - Capture directory: %s\n"
+					" - Filename prefix: %s\n"
+					" - Image format: %s\n",
+					captureDirectory.c_str(),
+					filenamePrefix.c_str(),
+					imageFormat.c_str()
+				);
+
+				// Start capturing
+				result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
+				if (result != S_OK)
+				{
+					res.set_content("{\"result\":\"Failed to start capture\"}", "application/json");
+				}
+				else
+				{
+					// Start thread for capture processing
+					captureStillsThread = std::thread([&] {
+						CaptureStills(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
+					});
+					// Wait on return of main capture stills thread
+					captureStillsThread.join();
+					selectedDeckLinkInput->StopCapture();
+					res.set_content("{\"result\":\"Completed\"}", "application/json");
+				}
+			}
+		}
 	});
 
 	// stop server
