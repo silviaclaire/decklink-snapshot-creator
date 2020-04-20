@@ -36,6 +36,76 @@
 
 #include "CaptureStills.h"
 
+HRESULT CaptureStills::GetDeckLinkInputDevice(const int deckLinkIndex, DeckLinkInputDevice* selectedDeckLinkInput,
+	std::vector<std::string>& deckLinkDeviceNames, bool& supportsFormatDetection)
+{
+	int 						idx = 0;
+	HRESULT						result = E_FAIL;
+	IDeckLink*					deckLink = NULL;
+	IDeckLinkIterator*			deckLinkIterator = NULL;
+
+	result = GetDeckLinkIterator(&deckLinkIterator);
+	fprintf(stderr, "result:%s", result);
+
+	if (result != S_OK)
+	{
+		fprintf(stderr, "Unable to get DeckLink iterator\n");
+		return result;
+	}
+
+	while ((result = deckLinkIterator->Next(&deckLink)) == S_OK)
+	{
+		dlstring_t deckLinkName;
+
+		result = deckLink->GetDisplayName(&deckLinkName);
+		if (result == S_OK)
+		{
+			deckLinkDeviceNames.push_back(DlToStdString(deckLinkName));
+			DeleteString(deckLinkName);
+		}
+
+		if (idx++ == deckLinkIndex)
+		{
+			// Check that selected device supports capture
+			IDeckLinkProfileAttributes*	deckLinkAttributes = NULL;
+			int64_t						ioSupportAttribute = 0;
+			dlbool_t					formatDetectionSupportAttribute;
+
+			result = deckLink->QueryInterface(IID_IDeckLinkProfileAttributes, (void**)&deckLinkAttributes);
+
+			if (result != S_OK)
+			{
+				fprintf(stderr, "Unable to get IDeckLinkAttributes interface\n");
+				break;
+			}
+
+			// Check whether device supports cpature
+			result = deckLinkAttributes->GetInt(BMDDeckLinkVideoIOSupport, &ioSupportAttribute);
+
+			if ((result != S_OK) || ((ioSupportAttribute & bmdDeviceSupportsCapture) == 0))
+			{
+				fprintf(stderr, "Selected device does not support capture\n");
+			}
+			else
+			{
+				// Check if input mode detection is supported.
+				result = deckLinkAttributes->GetFlag(BMDDeckLinkSupportsInputFormatDetection, &formatDetectionSupportAttribute);
+				supportsFormatDetection = (result == S_OK) && (formatDetectionSupportAttribute != FALSE);
+
+				selectedDeckLinkInput = new DeckLinkInputDevice(deckLink);
+			}
+
+			deckLinkAttributes->Release();
+		}
+
+		deckLink->Release();
+	}
+	deckLinkIterator->Release();
+	deckLinkIterator = NULL;
+
+	return result;
+}
+
 void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const int captureInterval, const int framesToCapture,
 	const std::string& captureDirectory, const std::string& filenamePrefix, const std::string& imageFormat)
 {

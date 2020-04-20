@@ -113,13 +113,10 @@ int main(int argc, char* argv[])
 
 	HRESULT						result;
 	int							exitStatus = 1;
-	int							idx;
 	bool						supportsFormatDetection = false;
 
 	std::thread					captureStillsThread;
 
-	IDeckLinkIterator*			deckLinkIterator = NULL;
-	IDeckLink*					deckLink = NULL;
 	DeckLinkInputDevice*		selectedDeckLinkInput = NULL;
 
 	BMDDisplayMode				selectedDisplayMode = bmdModeNTSC;
@@ -143,10 +140,6 @@ int main(int argc, char* argv[])
 
 	result = ImageWriter::Initialize();
 	if (FAILED(result))
-		goto bail;
-
-	result = GetDeckLinkIterator(&deckLinkIterator);
-	if (result != S_OK)
 		goto bail;
 
 	for (int i = 1; i < argc; i++)
@@ -185,34 +178,13 @@ int main(int argc, char* argv[])
 		displayHelp = true;
 	}
 
-	// Obtain the required DeckLink device
-	idx = 0;
-
-	while ((result = deckLinkIterator->Next(&deckLink)) == S_OK)
-	{
-		dlstring_t deckLinkName;
-
-		result = deckLink->GetDisplayName(&deckLinkName);
-		if (result == S_OK)
-		{
-			deckLinkDeviceNames.push_back(DlToStdString(deckLinkName));
-			DeleteString(deckLinkName);
-		}
-
-		if (idx++ == deckLinkIndex)
-		{
-			// Check that selected device supports capture
-			IDeckLinkProfileAttributes*	deckLinkAttributes = NULL;
-			int64_t						ioSupportAttribute = 0;
-			dlbool_t					formatDetectionSupportAttribute;
-
-			result = deckLink->QueryInterface(IID_IDeckLinkProfileAttributes, (void**)&deckLinkAttributes);
-
-			if (result != S_OK)
-			{
-				fprintf(stderr, "Unable to get IDeckLinkAttributes interface\n");
-				goto bail;
-			}
+    // Obtain the required DeckLink device
+    result = CaptureStills::GetDeckLinkInputDevice(deckLinkIndex, selectedDeckLinkInput, deckLinkDeviceNames, supportsFormatDetection);
+    if (result != S_OK)
+    {
+        fprintf(stderr, "Unable to obtain the required DeckLink device");
+        goto bail;
+    }
 
 			// Check whether device supports cpature
 			result = deckLinkAttributes->GetInt(BMDDeckLinkVideoIOSupport, &ioSupportAttribute);
@@ -442,12 +414,6 @@ bail:
 	{
 		selectedDeckLinkInput->Release();
 		selectedDeckLinkInput = NULL;
-	}
-
-	if (deckLinkIterator != NULL)
-	{
-		deckLinkIterator->Release();
-		deckLinkIterator = NULL;
 	}
 
 	ImageWriter::UnInitialize();
