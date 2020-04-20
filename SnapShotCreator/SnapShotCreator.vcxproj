@@ -162,6 +162,7 @@
   <ItemGroup>
     <ClInclude Include="Bgr24VideoFrame.h" />
     <ClInclude Include="Bgra32VideoFrame.h" />
+    <ClInclude Include="CaptureStills.h" />
     <ClInclude Include="DeckLinkAPI.h" />
     <ClInclude Include="DeckLinkInputDevice.h" />
     <ClInclude Include="ImageWriter.h" />
@@ -185,6 +186,7 @@
     </ClCompile>
     <ClCompile Include="DeckLinkInputDevice.cpp" />
     <ClCompile Include="ImageWriterWin.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="platform.cpp" />
     <ClCompile Include="lib_json\json_reader.cpp" />
     <ClCompile Include="lib_json\json_value.cpp" />
