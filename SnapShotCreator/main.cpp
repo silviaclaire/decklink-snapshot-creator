@@ -13,6 +13,11 @@
 #include "ImageWriter.h"
 #include "CaptureStills.h"
 
+
+const std::string						R_OK = "OK";
+const std::string						R_NG = "NG";
+
+
 std::string dump_headers(const httplib::Headers &headers) {
 	std::string s;
 	char buf[BUFSIZ];
@@ -68,6 +73,7 @@ bool validateRequestParams(const std::string captureDirectory, const std::string
 	// validate captureDirectory
 	if (captureDirectory.empty())
 	{
+		// TODO: throw exception instead
 		fprintf(stderr, "You must set a capture directory\n");
 		return false;
 	}
@@ -98,6 +104,30 @@ bool validateRequestParams(const std::string captureDirectory, const std::string
 	return true;
 }
 
+std::string MakeResponse(const std::string& result, const std::string& OK_body, const int& NG_resCode, const std::string& NG_err)
+{
+	char *fmt = NULL;
+	char buf[BUFSIZ];
+
+	if (result == R_OK) {
+		if (OK_body.empty())
+		{
+			fmt = R"("{"response":"%s", "body":{}}")";
+			snprintf(buf, sizeof(buf), fmt, result.c_str());
+		}
+		else
+		{
+			fmt = R"("{"response":"%s", "body":%s}")";
+			snprintf(buf, sizeof(buf), fmt, result.c_str(), OK_body.c_str());
+		}
+	}
+	else
+	{
+		fmt = R"("{"response":"%s", "body":{"code":%d, "message":"%s"}}")";
+		snprintf(buf, sizeof(buf), fmt, result.c_str(), NG_resCode, NG_err.c_str());
+	}
+	return buf;
+}
 
 int main(int argc, char* argv[])
 {
@@ -125,6 +155,11 @@ int main(int argc, char* argv[])
 	BMDDisplayMode				selectedDisplayMode = bmdModeNTSC;
 	std::string					selectedDisplayModeName;
 	std::vector<std::string>	deckLinkDeviceNames;
+	// TODO: add server status variable.
+
+	int							resCode = 0;
+	std::string 				err = "";
+	std::string					resString;
 
 	// Initialize server
 	httplib::Server 			svr;
@@ -186,6 +221,7 @@ int main(int argc, char* argv[])
 	}
 
 	// Obtain the required DeckLink device
+	// TODO(low): move to CaptureStills.cpp
 	idx = 0;
 
 	while ((result = deckLinkIterator->Next(&deckLink)) == S_OK)
@@ -238,6 +274,7 @@ int main(int argc, char* argv[])
 	}
 
 	// Get display modes from the selected decklink output
+	// TODO(low): move to CaptureStills.cpp
 	if (selectedDeckLinkInput != NULL)
 	{
 		result = selectedDeckLinkInput->Init();
@@ -348,11 +385,12 @@ int main(int argc, char* argv[])
 		Json::Value 							root;
 		Json::CharReaderBuilder 				jsonBuilder;
 		const std::unique_ptr<Json::CharReader>	jsonReader(jsonBuilder.newCharReader());
-		JSONCPP_STRING 							err;
 
+		std::string								command;
 		std::string 							captureDirectory;
 		std::string 							filenamePrefix;
 		std::string 							imageFormat;
+		bool									isInvalidRequest = false;
 
 		fprintf(stderr, "================================\n");
 		rawJson = req.body;
@@ -362,72 +400,112 @@ int main(int argc, char* argv[])
 		bool isParsable = jsonReader->parse(rawJson.c_str(), rawJson.c_str() + rawJson.length(), &root, &err);
 		if (!isParsable)
 		{
-			char *fmt = R"("{"result":"ERROR", "message":"Failed to parse JSON body:%s"}")";
-			char buf[BUFSIZ];
-			snprintf(buf, sizeof(buf), fmt, err.c_str());
-			res.set_content(buf, "application/json");
+			resCode = 991;
+			isInvalidRequest = true;
 		}
+
 		else
 		{
-			// Get parameters
-			captureDirectory = root["data"].get("outputDirectory", "").asCString();
-			filenamePrefix = root["data"].get("filenamePrefix", "").asCString();
-			imageFormat = root["data"].get("imageFormat", "").asCString();
+			// Get command
+			command = root["command"].asString();
 
-			if (!validateRequestParams(captureDirectory, filenamePrefix, imageFormat))
+			if (command == "IS_INITIALIZED")
 			{
-				res.set_content("{\"result\":\"Invalid request\"}", "application/json");
+				// Confirm if server is ready
+				// TODO: check server status
+				resString = MakeResponse(R_OK, "", resCode, err);
+				res.set_content(resString, "application/json");
 			}
-			else
-			{
-				// Print the request params
-				fprintf(stderr, "Capturing snapshot:\n"
-					" - Capture directory: %s\n"
-					" - Filename prefix: %s\n"
-					" - Image format: %s\n",
-					captureDirectory.c_str(),
-					filenamePrefix.c_str(),
-					imageFormat.c_str()
-				);
 
-				// Start capturing
-				result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
-				if (result != S_OK)
+			else if (command == "SHUTDOWN")
+			{
+				// Cancel capture and shutdown server
+				selectedDeckLinkInput->CancelCapture();
+				resString = MakeResponse(R_OK, "", resCode, err);
+				res.set_content(resString, "application/json");
+				svr.stop();
+			}
+
+			else if (command == "CREATE_SNAPSHOT")
+			{
+				// Create Snapshot
+
+				// Get parameters
+				captureDirectory = root["data"].get("outputDirectory", "").asCString();
+				filenamePrefix = root["data"].get("filenamePrefix", "").asCString();
+				imageFormat = root["data"].get("imageFormat", "").asCString();
+
+				if (!validateRequestParams(captureDirectory, filenamePrefix, imageFormat))
 				{
-					res.set_content("{\"result\":\"Failed to start capture\"}", "application/json");
+					resCode = 992;
+					// TODO(high): Get error messages
+					isInvalidRequest = true;
 				}
 				else
 				{
-					// Start thread for capture processing
-					captureStillsThread = std::thread([&] {
-						CaptureStills::CreateSnapshot(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
-					});
-					// Wait on return of main capture stills thread
-					captureStillsThread.join();
-					selectedDeckLinkInput->StopCapture();
-					res.set_content("{\"result\":\"Completed\"}", "application/json");
+					// Print the request params
+					fprintf(stderr, "Capturing snapshot:\n"
+						" - Capture directory: %s\n"
+						" - Filename prefix: %s\n"
+						" - Image format: %s\n",
+						captureDirectory.c_str(),
+						filenamePrefix.c_str(),
+						imageFormat.c_str()
+					);
+
+					// Start capturing
+					result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
+					if (result != S_OK)
+					{
+						resCode = 910;
+						err = "Failed to start capture";
+						resString = MakeResponse(R_NG, "", resCode, err);
+						res.set_content(resString, "application/json");
+					}
+					else
+					{
+						// Start thread for capture processing
+						// TODO(high): Get file path as return if success
+						captureStillsThread = std::thread([&] {
+							CaptureStills::CreateSnapshot(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
+						});
+						// Wait on return of main capture stills thread
+						captureStillsThread.join();
+						selectedDeckLinkInput->StopCapture();
+						resString = MakeResponse(R_OK, "", resCode, err);
+						res.set_content(resString, "application/json");
+					}
 				}
 			}
+
+			else
+			{
+				// Invalid command
+				resCode = 993;
+				err = "Invalid command";
+				isInvalidRequest = true;
+			}
+		}
+
+		if (isInvalidRequest)
+		{
+			resString = MakeResponse(R_NG, "", resCode, err);
+			res.set_content(resString, "application/json");
 		}
 	});
 
-	// stop server
-	svr.Get("/stop", [&](const httplib::Request& req, httplib::Response& res) {
-		selectedDeckLinkInput->CancelCapture();
-		res.set_content("{\"result\":\"Capture canceled. Stopping server...\"}", "application/json");
-		svr.stop();
-	});
-
 	// if server error occures, return with response
-	svr.set_error_handler([](const httplib::Request & /*req*/, httplib::Response &res) {
-		const char *fmt = "{\"result\":\"ERROR\", \"status\":%d}";
-		char buf[BUFSIZ];
-		snprintf(buf, sizeof(buf), fmt, res.status);
-		res.set_content(buf, "application/json");
+	svr.set_error_handler([&](const httplib::Request & /*req*/, httplib::Response &res) {
+		// TODO: catch exception message?
+		resCode = 994;
+		err = "URL error";
+		resString = MakeResponse(R_NG, "", resCode, err);
+		res.set_content(resString, "application/json");
 	});
 
 	// set logger for request/response
 	svr.set_logger([](const httplib::Request &req, const httplib::Response &res) {
+		// TODO: write log to file
 		printf("%s", log(req, res).c_str());
 	});
 
@@ -437,6 +515,9 @@ int main(int argc, char* argv[])
 	// All Okay.
 	exitStatus = 0;
 
+// TODO(low): replace bail with function:
+//       - release resources
+//       - set server status for further requests
 bail:
 	if (selectedDeckLinkInput != NULL)
 	{

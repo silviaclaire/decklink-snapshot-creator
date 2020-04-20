@@ -66,6 +66,7 @@ HRESULT ImageWriter::GetNextFilenameWithPrefix(const std::string& path, const st
 	while (idx < 10000)
 	{
 		CString	filename;
+		// TODO: use prefix_YYYYMMDDhhmmss
 		filename.Format(_T("%s\\%s%.4d.%s"), CString(path.c_str()), CString(prefix.c_str()), idx++, CString(extension.c_str()));
 
 		if (!PathFileExists(filename))
