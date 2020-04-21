@@ -18,6 +18,12 @@
 const std::string						R_OK = "OK";
 const std::string						R_NG = "NG";
 
+enum ServerStatus{
+	INITIALIZATION_ERROR = -1,
+	INITIALIZING = 0,
+	IDLE,
+	PROCESSING,
+};
 
 std::string dump_headers(const httplib::Headers &headers) {
 	std::string s;
@@ -149,146 +155,122 @@ int main(int argc, char* argv[])
 	BMDDisplayMode				selectedDisplayMode = bmdModeNTSC;
 	std::string					selectedDisplayModeName;
 	std::vector<std::string>	deckLinkDeviceNames;
-	// TODO: add server status variable.
+
+	ServerStatus				serverStatus = INITIALIZING;
+	std::string					initializationErrMsg = "initializing";
 
 	// Initialize server
 	httplib::Server 			svr;
 	if (!svr.is_valid()) {
 		fprintf(stderr, "Server initialization failed.\n");
-		return 1;
+		return exitStatus;
 	}
 
-	// Initialize COM on this thread
-	result = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-	if (FAILED(result))
+	try
 	{
-		fprintf(stderr, "Initialization of COM failed - result = %08x.\n", result);
-		return 1;
-	}
+		// Initialize COM on this thread
+		result = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+		if (FAILED(result))
+			throw InitializationError("Initialization of COM failed");
 
-	result = ImageWriter::Initialize();
-	if (FAILED(result))
-		goto bail;
+		result = ImageWriter::Initialize();
+		if (FAILED(result))
+			throw InitializationError("Initialization of ImageWriter failed");
 
-	result = GetDeckLinkIterator(&deckLinkIterator);
-	if (result != S_OK)
-		goto bail;
+		result = GetDeckLinkIterator(&deckLinkIterator);
+		if (result != S_OK)
+			throw InitializationError("Initialization of deckLinkIterator failed");
 
-	for (int i = 1; i < argc; i++)
-	{
-		if (strcmp(argv[i], "-d") == 0)
-			deckLinkIndex = atoi(argv[++i]);
-
-		else if (strcmp(argv[i], "-m") == 0)
-			displayModeIndex = atoi(argv[++i]);
-
-		else if (strcmp(argv[i], "-i") == 0)
-			captureInterval = atoi(argv[++i]);
-
-		else if (strcmp(argv[i], "-n") == 0)
-			framesToCapture = atoi(argv[++i]);
-
-		else if (strcmp(argv[i], "-f") == 0)
-			pixelFormatIndex = atoi(argv[++i]);
-
-		else if (strcmp(argv[i], "-p") == 0)
-			portNo = atoi(argv[++i]);
-
-		else if ((strcmp(argv[i], "?") == 0) || (strcmp(argv[i], "-h") == 0))
-			displayHelp = true;
-	}
-
-	if (deckLinkIndex < 0)
-	{
-		fprintf(stderr, "You must select a device\n");
-		displayHelp = true;
-	}
-
-	if ((portNo > 65535) || (portNo < 2000))
-	{
-		fprintf(stderr, "You must select a port number between 2000 - 65535\n");
-		displayHelp = true;
-	}
-
-	// Obtain the required DeckLink device
-	// TODO(low): move to CaptureStills.cpp
-	idx = 0;
-
-	while ((result = deckLinkIterator->Next(&deckLink)) == S_OK)
-	{
-		dlstring_t deckLinkName;
-
-		result = deckLink->GetDisplayName(&deckLinkName);
-		if (result == S_OK)
+		for (int i = 1; i < argc; i++)
 		{
-			deckLinkDeviceNames.push_back(DlToStdString(deckLinkName));
-			DeleteString(deckLinkName);
+			if (strcmp(argv[i], "-d") == 0)
+				deckLinkIndex = atoi(argv[++i]);
+
+			else if (strcmp(argv[i], "-m") == 0)
+				displayModeIndex = atoi(argv[++i]);
+
+			else if (strcmp(argv[i], "-i") == 0)
+				captureInterval = atoi(argv[++i]);
+
+			else if (strcmp(argv[i], "-n") == 0)
+				framesToCapture = atoi(argv[++i]);
+
+			else if (strcmp(argv[i], "-f") == 0)
+				pixelFormatIndex = atoi(argv[++i]);
+
+			else if (strcmp(argv[i], "-p") == 0)
+				portNo = atoi(argv[++i]);
+
+			else if ((strcmp(argv[i], "?") == 0) || (strcmp(argv[i], "-h") == 0))
+				displayHelp = true;
 		}
 
-		if (idx++ == deckLinkIndex)
+		if (deckLinkIndex < 0)
+			throw InitializationError("You must select a device");
+
+		if ((portNo > 65535) || (portNo < 2000))
+			throw InitializationError("You must select a port number between 2000 - 65535");
+
+		// Obtain the required DeckLink device
+		// TODO(low): move to CaptureStills.cpp
+		idx = 0;
+
+		while ((result = deckLinkIterator->Next(&deckLink)) == S_OK)
 		{
-			// Check that selected device supports capture
-			IDeckLinkProfileAttributes*	deckLinkAttributes = NULL;
-			int64_t						ioSupportAttribute = 0;
-			dlbool_t					formatDetectionSupportAttribute;
+			dlstring_t deckLinkName;
 
-			result = deckLink->QueryInterface(IID_IDeckLinkProfileAttributes, (void**)&deckLinkAttributes);
-
-			if (result != S_OK)
+			result = deckLink->GetDisplayName(&deckLinkName);
+			if (result == S_OK)
 			{
-				fprintf(stderr, "Unable to get IDeckLinkAttributes interface\n");
-				goto bail;
+				deckLinkDeviceNames.push_back(DlToStdString(deckLinkName));
+				DeleteString(deckLinkName);
 			}
 
-			// Check whether device supports cpature
-			result = deckLinkAttributes->GetInt(BMDDeckLinkVideoIOSupport, &ioSupportAttribute);
+			if (idx++ == deckLinkIndex)
+			{
+				// Check that selected device supports capture
+				IDeckLinkProfileAttributes*	deckLinkAttributes = NULL;
+				int64_t						ioSupportAttribute = 0;
+				dlbool_t					formatDetectionSupportAttribute;
 
-			if ((result != S_OK) || ((ioSupportAttribute & bmdDeviceSupportsCapture) == 0))
-			{
-				fprintf(stderr, "Selected device does not support capture\n");
-				displayHelp = true;
-			}
-			else
-			{
+				result = deckLink->QueryInterface(IID_IDeckLinkProfileAttributes, (void**)&deckLinkAttributes);
+				if (result != S_OK)
+					throw InitializationError("Unable to get IDeckLinkAttributes interface");
+
+				// Check whether device supports cpature
+				result = deckLinkAttributes->GetInt(BMDDeckLinkVideoIOSupport, &ioSupportAttribute);
+				if ((result != S_OK) || ((ioSupportAttribute & bmdDeviceSupportsCapture) == 0))
+					throw InitializationError("Selected device does not support capture");
+
 				// Check if input mode detection is supported.
 				result = deckLinkAttributes->GetFlag(BMDDeckLinkSupportsInputFormatDetection, &formatDetectionSupportAttribute);
 				supportsFormatDetection = (result == S_OK) && (formatDetectionSupportAttribute != FALSE);
 
 				selectedDeckLinkInput = new DeckLinkInputDevice(deckLink);
+
+				deckLinkAttributes->Release();
 			}
 
-			deckLinkAttributes->Release();
+			deckLink->Release();
 		}
 
-		deckLink->Release();
-	}
+		// Get display modes from the selected decklink output
+		// TODO(low): move to CaptureStills.cpp
+		if (selectedDeckLinkInput != NULL)
+		{
+			result = selectedDeckLinkInput->Init();
+			if (result != S_OK)
+				throw InitializationError("Unable to initialize DeckLink input interface");
 
-	// Get display modes from the selected decklink output
-	// TODO(low): move to CaptureStills.cpp
-	if (selectedDeckLinkInput != NULL)
-	{
-		result = selectedDeckLinkInput->Init();
-		if (result != S_OK)
-		{
-			fprintf(stderr, "Unable to initialize DeckLink input interface");
-			goto bail;
-		}
+			// Get the display mode
+			if ((displayModeIndex < -1) || (displayModeIndex >= (int)selectedDeckLinkInput->GetDisplayModeList().size()))
+				throw InitializationError("You must select a valid display mode");
 
-		// Get the display mode
-		if ((displayModeIndex < -1) || (displayModeIndex >= (int)selectedDeckLinkInput->GetDisplayModeList().size()))
-		{
-			fprintf(stderr, "You must select a valid display mode\n");
-			displayHelp = true;
-		}
-		else if (displayModeIndex == -1)
-		{
-			if (!supportsFormatDetection)
+			if (displayModeIndex == -1)
 			{
-				fprintf(stderr, "Format detection is not supported on this device\n");
-				displayHelp = true;
-			}
-			else
-			{
+				if (!supportsFormatDetection)
+					throw InitializationError("Format detection is not supported on this device");
+
 				enableFormatDetection = true;
 
 				// Format detection still needs a valid mode to start with
@@ -296,78 +278,101 @@ int main(int argc, char* argv[])
 				selectedDisplayModeName = "Automatic mode detection";
 				pixelFormatIndex = 0;
 			}
-		}
-		else if ((pixelFormatIndex < 0) || (pixelFormatIndex >= (int)kSupportedPixelFormats.size()))
-		{
-			fprintf(stderr, "You must select a valid pixel format\n");
-			displayHelp = true;
+			else if ((pixelFormatIndex < 0) || (pixelFormatIndex >= (int)kSupportedPixelFormats.size()))
+			{
+				throw InitializationError("You must select a valid pixel format");
+			}
+			else
+			{
+				dlbool_t				displayModeSupported;
+				dlstring_t				displayModeNameStr;
+				IDeckLinkDisplayMode*	displayMode = selectedDeckLinkInput->GetDisplayModeList()[displayModeIndex];
+
+				result = displayMode->GetName(&displayModeNameStr);
+				if (result == S_OK)
+				{
+					selectedDisplayModeName = DlToStdString(displayModeNameStr);
+					DeleteString(displayModeNameStr);
+				}
+
+				selectedDisplayMode = displayMode->GetDisplayMode();
+
+				// Check display mode is supported with given options
+				result = selectedDeckLinkInput->GetDeckLinkInput()->DoesSupportVideoMode(bmdVideoConnectionUnspecified,
+					selectedDisplayMode,
+					std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]),
+					bmdNoVideoInputConversion,
+					bmdSupportedVideoModeDefault,
+					NULL,
+					&displayModeSupported);
+				if ((result != S_OK) || (!displayModeSupported))
+				{
+					throw InitializationError("Display mode "+selectedDisplayModeName+" with pixel format "+std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex])+" is not supported by device");
+				}
+			}
 		}
 		else
 		{
-			dlbool_t				displayModeSupported;
-			dlstring_t				displayModeNameStr;
-			IDeckLinkDisplayMode*	displayMode = selectedDeckLinkInput->GetDisplayModeList()[displayModeIndex];
-
-			result = displayMode->GetName(&displayModeNameStr);
-			if (result == S_OK)
-			{
-				selectedDisplayModeName = DlToStdString(displayModeNameStr);
-				DeleteString(displayModeNameStr);
-			}
-
-			selectedDisplayMode = displayMode->GetDisplayMode();
-
-			// Check display mode is supported with given options
-			result = selectedDeckLinkInput->GetDeckLinkInput()->DoesSupportVideoMode(bmdVideoConnectionUnspecified,
-				selectedDisplayMode,
-				std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]),
-				bmdNoVideoInputConversion,
-				bmdSupportedVideoModeDefault,
-				NULL,
-				&displayModeSupported);
-			if ((result != S_OK) || (!displayModeSupported))
-			{
-				fprintf(stderr, "Display mode %s with pixel format %s is not supported by device\n",
-					selectedDisplayModeName.c_str(),
-					std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex]).c_str()
-				);
-				displayHelp = true;
-			}
+			throw InitializationError("Invalid input device selected");
 		}
+
+		// Try capturing
+		result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
+		if (result != S_OK)
+			throw InitializationError("Failed to start capture");
+
+		// Print the selected configuration
+		fprintf(stderr, "Capturing with the following configuration:\n"
+			" - Capture device: %s\n"
+			" - Video mode: %s\n"
+			" - Pixel format: %s\n"
+			" - Frames to capture: %d\n"
+			" - Capture interval: %d\n",
+			selectedDeckLinkInput->GetDeviceName().c_str(),
+			selectedDisplayModeName.c_str(),
+			std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex]).c_str(),
+			framesToCapture,
+			captureInterval
+		);
+
+		// Wait for incoming video frame
+		IDeckLinkVideoFrame*		receivedVideoFrame = NULL;
+		bool 						captureCancelled;
+		if (!selectedDeckLinkInput->WaitForVideoFrameArrived(&receivedVideoFrame, captureCancelled))
+		{
+			throw InitializationError("Timeout waiting for valid frame");
+		}
+
+		// Stop capturing on successful try
+		selectedDeckLinkInput->StopCapture();
+
+		// Update server status
+		serverStatus = IDLE;
+		fprintf(stderr, "System all green.\n");
 	}
-	else
+	catch (std::exception& ex)
 	{
-		fprintf(stderr, "Invalid input device selected\n");
-		displayHelp = true;
+		// Update server status and print error
+		fprintf(stderr, "Initialization error occurred.\n");
+		serverStatus = INITIALIZATION_ERROR;
+		initializationErrMsg = ex.what();
+		//CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection);
+
+		// free resources
+		if (selectedDeckLinkInput != NULL)
+		{
+			selectedDeckLinkInput->CancelCapture();
+			selectedDeckLinkInput->Release();
+			selectedDeckLinkInput = NULL;
+		}
+		if (deckLinkIterator != NULL)
+		{
+			deckLinkIterator->Release();
+			deckLinkIterator = NULL;
+		}
+		ImageWriter::UnInitialize();
+		CoUninitialize();
 	}
-
-	if (displayHelp)
-	{
-		CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection);
-		goto bail;
-	}
-
-	// Try capturing
-	result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
-	if (result != S_OK)
-		goto bail;
-
-	// Print the selected configuration
-	fprintf(stderr, "Capturing with the following configuration:\n"
-		" - Capture device: %s\n"
-		" - Video mode: %s\n"
-		" - Pixel format: %s\n"
-		" - Frames to capture: %d\n"
-		" - Capture interval: %d\n",
-		selectedDeckLinkInput->GetDeviceName().c_str(),
-		selectedDisplayModeName.c_str(),
-		std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex]).c_str(),
-		framesToCapture,
-		captureInterval
-	);
-	// Stop capturing on successful try
-	selectedDeckLinkInput->StopCapture();
-	fprintf(stderr, "System all green.\n");
 
 	// create a snapshot
 	svr.Post("/", [&](const httplib::Request &req, httplib::Response &res) {
@@ -380,6 +385,7 @@ int main(int argc, char* argv[])
 		std::string 							captureDirectory;
 		std::string 							filenamePrefix;
 		std::string 							imageFormat;
+		// TODO: get rid of the belowing variable
 		std::string 							err = "";
 
 		fprintf(stderr, "================================\n");
@@ -389,7 +395,7 @@ int main(int argc, char* argv[])
 		// Parse JSON body
 		if (!jsonReader->parse(rawJson.c_str(), rawJson.c_str() + rawJson.length(), &root, &err))
 		{
-			throw InvalidRequest("Invalid request: failed to parse JSON body");
+			throw InvalidRequest("failed to parse JSON body");
 		}
 
 		// Get command
@@ -398,21 +404,50 @@ int main(int argc, char* argv[])
 		if (command == "IS_INITIALIZED")
 		{
 			// Confirm if server is ready
-			// TODO: check server status
-			res.set_content(make_response(R_OK), "application/json");
+			if (serverStatus > INITIALIZING)
+			{
+				res.set_content(make_response(R_OK), "application/json");
+			}
+			else
+			{
+				throw InitializationError(initializationErrMsg);
+			}
 		}
 
 		else if (command == "SHUTDOWN")
 		{
 			// Cancel capture and shutdown server
-			selectedDeckLinkInput->CancelCapture();
+			if (selectedDeckLinkInput != NULL)
+			{
+				selectedDeckLinkInput->CancelCapture();
+				selectedDeckLinkInput->Release();
+				selectedDeckLinkInput = NULL;
+			}
+			if (deckLinkIterator != NULL)
+			{
+				deckLinkIterator->Release();
+				deckLinkIterator = NULL;
+			}
+			ImageWriter::UnInitialize();
+			CoUninitialize();
 			res.set_content(make_response(R_OK), "application/json");
 			svr.stop();
 		}
 
 		else if (command == "CREATE_SNAPSHOT")
 		{
+			if (serverStatus < IDLE)
+			{
+				throw InitializationError(initializationErrMsg);
+			}
+			else if (serverStatus == PROCESSING)
+			{
+				throw CaptureError("server is processing another snapshot");
+			}
+
 			// Create Snapshot
+			// Update server status
+			serverStatus = PROCESSING;
 
 			// Get parameters
 			captureDirectory = root["data"].get("outputDirectory", "").asCString();
@@ -433,22 +468,26 @@ int main(int argc, char* argv[])
 			// Start capturing
 			result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
 			if (result != S_OK)
-			{
-				throw CaptureError("CaptureError: failed to start capture");
-			}
+				throw CaptureError("failed to start capture");
+
 			// Start thread for capture processing
 			// TODO(high): Get file path as return if success
+			// TODO(high): Catch exception from thread if failed
 			captureStillsThread = std::thread([&] {
 				CaptureStills::CreateSnapshot(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
 			});
 			// Wait on return of main capture stills thread
 			captureStillsThread.join();
+			// Stop capturing
 			selectedDeckLinkInput->StopCapture();
+
+			// Update server status
+			serverStatus = IDLE;
 			res.set_content(make_response(R_OK, ""), "application/json");
 		}
 		else
 		{
-			throw InvalidRequest("Invalid request: 'command' key not found or not supported '"+command+"'");
+			throw InvalidRequest("'command' key not found or not supported '"+command+"'");
 		}
 
 	});
@@ -462,24 +501,32 @@ int main(int argc, char* argv[])
 		// TODO: use mappings or vectors for errType and errCode pairs.
 		if (errType == "class InitializationError")
 		{
-			errCode = 900;
+			errCode = (serverStatus==INITIALIZING) ? 900 : 901;
+			errMsg = "InitializationError: " + errMsg;
 		}
 		else if (errType == "class InvalidParams")
 		{
 			errCode = 910;
+			errMsg = "InvalidParams: " + errMsg;
+			serverStatus = IDLE;
 		}
 		else if (errType == "class CaptureError")
 		{
 			errCode = 911;
+			errMsg = "CaptureError: " + errMsg;
+			serverStatus = IDLE;
 		}
 		else if (errType == "class InvalidRequest")
 		{
 			errCode = 990;
+			errMsg = "InvalidRequest: " + errMsg;
+			serverStatus = IDLE;
 		}
 		else
 		{
 			errCode = 999;
 			errMsg = "URL error or unexpected error";
+			serverStatus = IDLE;
 		}
 		res.set_content(make_response(R_NG, "", errCode, errMsg), "application/json");
 	});
@@ -495,26 +542,4 @@ int main(int argc, char* argv[])
 
 	// All Okay.
 	exitStatus = 0;
-
-// TODO(low): replace bail with function:
-//       - release resources
-//       - set server status for further requests
-bail:
-	if (selectedDeckLinkInput != NULL)
-	{
-		selectedDeckLinkInput->Release();
-		selectedDeckLinkInput = NULL;
-	}
-
-	if (deckLinkIterator != NULL)
-	{
-		deckLinkIterator->Release();
-		deckLinkIterator = NULL;
-	}
-
-	ImageWriter::UnInitialize();
-
-	CoUninitialize();
-
-	return exitStatus;
 }
