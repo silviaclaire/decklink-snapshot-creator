@@ -112,18 +112,18 @@ std::string MakeResponse(const std::string& result, const std::string& OK_body, 
 	if (result == R_OK) {
 		if (OK_body.empty())
 		{
-			fmt = R"("{"response":"%s", "body":{}}")";
+			fmt = R"({"response":"%s", "body":{}})";
 			snprintf(buf, sizeof(buf), fmt, result.c_str());
 		}
 		else
 		{
-			fmt = R"("{"response":"%s", "body":%s}")";
+			fmt = R"({"response":"%s", "body":%s})";
 			snprintf(buf, sizeof(buf), fmt, result.c_str(), OK_body.c_str());
 		}
 	}
 	else
 	{
-		fmt = R"("{"response":"%s", "body":{"code":%d, "message":"%s"}}")";
+		fmt = R"({"response":"%s", "body":{"code":%d, "message":"%s"}})";
 		snprintf(buf, sizeof(buf), fmt, result.c_str(), NG_resCode, NG_err.c_str());
 	}
 	return buf;
@@ -401,6 +401,7 @@ int main(int argc, char* argv[])
 		if (!isParsable)
 		{
 			resCode = 991;
+			err = "Failed to parse JSON body";
 			isInvalidRequest = true;
 		}
 
@@ -497,10 +498,15 @@ int main(int argc, char* argv[])
 	// if server error occures, return with response
 	svr.set_error_handler([&](const httplib::Request & /*req*/, httplib::Response &res) {
 		// TODO: catch exception message?
-		resCode = 994;
-		err = "URL error";
+		if (resCode == 0)
+			resCode = 999;
+		if (err.empty())
+			err = "URL error or unexpected error";
 		resString = MakeResponse(R_NG, "", resCode, err);
 		res.set_content(resString, "application/json");
+		// reset resCode and err after every response
+		resCode = 0;
+		err = "";
 	});
 
 	// set logger for request/response
