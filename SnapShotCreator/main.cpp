@@ -385,7 +385,7 @@ int main(int argc, char* argv[])
 		std::string 							captureDirectory;
 		std::string 							filenamePrefix;
 		std::string 							imageFormat;
-		// TODO: get rid of the belowing variable
+		// TODO(low): get rid of the belowing variable
 		std::string 							err = "";
 
 		fprintf(stderr, "================================\n");
@@ -498,7 +498,7 @@ int main(int argc, char* argv[])
 		std::string 	errMsg = res.get_header_value("EXCEPTION_WHAT");
 		std::string 	errType = res.get_header_value("EXCEPTION_TYPE");
 
-		// TODO: use mappings or vectors for errType and errCode pairs.
+		// TODO(low): use mappings or vectors for errType and errCode pairs.
 		if (errType == "class InitializationError")
 		{
 			errCode = (serverStatus==INITIALIZING) ? 900 : 901;
@@ -533,7 +533,7 @@ int main(int argc, char* argv[])
 
 	// set logger for request/response
 	svr.set_logger([](const httplib::Request &req, const httplib::Response &res) {
-		// TODO: write log to file
+		// TODO(high): write log to file
 		printf("%s", log(req, res).c_str());
 	});
 
