@@ -9,6 +9,7 @@
 #include <thread>
 #include <vector>
 
+#include "exceptions.h"
 #include "platform.h"
 #include "ImageWriter.h"
 #include "CaptureStills.h"
@@ -68,49 +69,42 @@ std::string log(const httplib::Request &req, const httplib::Response &res) {
 	return s;
 }
 
-bool validateRequestParams(const std::string captureDirectory, const std::string filenamePrefix, const std::string imageFormat)
+void validateRequestParams(const std::string captureDirectory, const std::string filenamePrefix, const std::string imageFormat)
 {
 	// validate captureDirectory
 	if (captureDirectory.empty())
 	{
-		// TODO: throw exception instead
-		fprintf(stderr, "You must set a capture directory\n");
-		return false;
+		throw InvalidParams("You must set a capture directory");
 	}
 	else if (!IsPathDirectory(captureDirectory))
 	{
-		fprintf(stderr, "Invalid directory specified:%s\n", captureDirectory.c_str());
-		return false;
+		throw InvalidParams("Invalid directory specified");
 	}
 
 	// validate filenamePrefix
 	if (filenamePrefix.empty())
 	{
-		fprintf(stderr, "You must set a filename prefix\n");
-		return false;
+		throw InvalidParams("You must set a filename prefix");
 	}
 
 	// validate imageFormat
 	if (imageFormat.empty())
 	{
-		fprintf(stderr, "You must set an image format\n");
-		return false;
+		throw InvalidParams("You must set an image format");
 	}
 	else if (std::find(supportedImageFormats.begin(), supportedImageFormats.end(), imageFormat) == supportedImageFormats.end())
 	{
-		fprintf(stderr, "Invalid image format specified:%s\n", imageFormat.c_str());
-		return false;
+		throw InvalidParams("Invalid image format specified '"+imageFormat+"'");
 	}
-	return true;
 }
 
-std::string MakeResponse(const std::string& result, const std::string& OK_body, const int& NG_resCode, const std::string& NG_err)
+std::string make_response(const std::string& result, const std::string& body="", const int& errCode=0, const std::string& errMsg="")
 {
 	char *fmt = NULL;
 	char buf[BUFSIZ];
 
 	if (result == R_OK) {
-		if (OK_body.empty())
+		if (body.empty())
 		{
 			fmt = R"({"response":"%s", "body":{}})";
 			snprintf(buf, sizeof(buf), fmt, result.c_str());
@@ -118,13 +112,13 @@ std::string MakeResponse(const std::string& result, const std::string& OK_body, 
 		else
 		{
 			fmt = R"({"response":"%s", "body":%s})";
-			snprintf(buf, sizeof(buf), fmt, result.c_str(), OK_body.c_str());
+			snprintf(buf, sizeof(buf), fmt, result.c_str(), body.c_str());
 		}
 	}
 	else
 	{
 		fmt = R"({"response":"%s", "body":{"code":%d, "message":"%s"}})";
-		snprintf(buf, sizeof(buf), fmt, result.c_str(), NG_resCode, NG_err.c_str());
+		snprintf(buf, sizeof(buf), fmt, result.c_str(), errCode, errMsg.c_str());
 	}
 	return buf;
 }
@@ -156,10 +150,6 @@ int main(int argc, char* argv[])
 	std::string					selectedDisplayModeName;
 	std::vector<std::string>	deckLinkDeviceNames;
 	// TODO: add server status variable.
-
-	int							resCode = 0;
-	std::string 				err = "";
-	std::string					resString;
 
 	// Initialize server
 	httplib::Server 			svr;
@@ -390,123 +380,108 @@ int main(int argc, char* argv[])
 		std::string 							captureDirectory;
 		std::string 							filenamePrefix;
 		std::string 							imageFormat;
-		bool									isInvalidRequest = false;
+		std::string 							err = "";
 
 		fprintf(stderr, "================================\n");
 		rawJson = req.body;
 		fprintf(stderr, "%s\n", rawJson.c_str());
 
 		// Parse JSON body
-		bool isParsable = jsonReader->parse(rawJson.c_str(), rawJson.c_str() + rawJson.length(), &root, &err);
-		if (!isParsable)
+		if (!jsonReader->parse(rawJson.c_str(), rawJson.c_str() + rawJson.length(), &root, &err))
 		{
-			resCode = 991;
-			err = "Failed to parse JSON body";
-			isInvalidRequest = true;
+			throw InvalidRequest("Invalid request: failed to parse JSON body");
 		}
 
+		// Get command
+		command = root["command"].asString();
+
+		if (command == "IS_INITIALIZED")
+		{
+			// Confirm if server is ready
+			// TODO: check server status
+			res.set_content(make_response(R_OK), "application/json");
+		}
+
+		else if (command == "SHUTDOWN")
+		{
+			// Cancel capture and shutdown server
+			selectedDeckLinkInput->CancelCapture();
+			res.set_content(make_response(R_OK), "application/json");
+			svr.stop();
+		}
+
+		else if (command == "CREATE_SNAPSHOT")
+		{
+			// Create Snapshot
+
+			// Get parameters
+			captureDirectory = root["data"].get("outputDirectory", "").asCString();
+			filenamePrefix = root["data"].get("filenamePrefix", "").asCString();
+			imageFormat = root["data"].get("imageFormat", "").asCString();
+			validateRequestParams(captureDirectory, filenamePrefix, imageFormat);
+
+			// Print the request params
+			fprintf(stderr, "Capturing snapshot:\n"
+				" - Capture directory: %s\n"
+				" - Filename prefix: %s\n"
+				" - Image format: %s\n",
+				captureDirectory.c_str(),
+				filenamePrefix.c_str(),
+				imageFormat.c_str()
+			);
+
+			// Start capturing
+			result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
+			if (result != S_OK)
+			{
+				throw CaptureError("CaptureError: failed to start capture");
+			}
+			// Start thread for capture processing
+			// TODO(high): Get file path as return if success
+			captureStillsThread = std::thread([&] {
+				CaptureStills::CreateSnapshot(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
+			});
+			// Wait on return of main capture stills thread
+			captureStillsThread.join();
+			selectedDeckLinkInput->StopCapture();
+			res.set_content(make_response(R_OK, ""), "application/json");
+		}
 		else
 		{
-			// Get command
-			command = root["command"].asString();
-
-			if (command == "IS_INITIALIZED")
-			{
-				// Confirm if server is ready
-				// TODO: check server status
-				resString = MakeResponse(R_OK, "", resCode, err);
-				res.set_content(resString, "application/json");
-			}
-
-			else if (command == "SHUTDOWN")
-			{
-				// Cancel capture and shutdown server
-				selectedDeckLinkInput->CancelCapture();
-				resString = MakeResponse(R_OK, "", resCode, err);
-				res.set_content(resString, "application/json");
-				svr.stop();
-			}
-
-			else if (command == "CREATE_SNAPSHOT")
-			{
-				// Create Snapshot
-
-				// Get parameters
-				captureDirectory = root["data"].get("outputDirectory", "").asCString();
-				filenamePrefix = root["data"].get("filenamePrefix", "").asCString();
-				imageFormat = root["data"].get("imageFormat", "").asCString();
-
-				if (!validateRequestParams(captureDirectory, filenamePrefix, imageFormat))
-				{
-					resCode = 992;
-					// TODO(high): Get error messages
-					isInvalidRequest = true;
-				}
-				else
-				{
-					// Print the request params
-					fprintf(stderr, "Capturing snapshot:\n"
-						" - Capture directory: %s\n"
-						" - Filename prefix: %s\n"
-						" - Image format: %s\n",
-						captureDirectory.c_str(),
-						filenamePrefix.c_str(),
-						imageFormat.c_str()
-					);
-
-					// Start capturing
-					result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
-					if (result != S_OK)
-					{
-						resCode = 910;
-						err = "Failed to start capture";
-						resString = MakeResponse(R_NG, "", resCode, err);
-						res.set_content(resString, "application/json");
-					}
-					else
-					{
-						// Start thread for capture processing
-						// TODO(high): Get file path as return if success
-						captureStillsThread = std::thread([&] {
-							CaptureStills::CreateSnapshot(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
-						});
-						// Wait on return of main capture stills thread
-						captureStillsThread.join();
-						selectedDeckLinkInput->StopCapture();
-						resString = MakeResponse(R_OK, "", resCode, err);
-						res.set_content(resString, "application/json");
-					}
-				}
-			}
-
-			else
-			{
-				// Invalid command
-				resCode = 993;
-				err = "Invalid command";
-				isInvalidRequest = true;
-			}
+			throw InvalidRequest("Invalid request: 'command' key not found or not supported '"+command+"'");
 		}
 
-		if (isInvalidRequest)
-		{
-			resString = MakeResponse(R_NG, "", resCode, err);
-			res.set_content(resString, "application/json");
-		}
 	});
 
 	// if server error occures, return with response
 	svr.set_error_handler([&](const httplib::Request & /*req*/, httplib::Response &res) {
-		// TODO: catch exception message?
-		if (resCode == 0)
-			resCode = 999;
-		if (err.empty())
-			err = "URL error or unexpected error";
-		resString = MakeResponse(R_NG, "", resCode, err);
-		res.set_content(resString, "application/json");
-		// reset resCode and err after every response
-		resCode = 0;
-		err = "";
+		int				errCode;
+		std::string 	errMsg = res.get_header_value("EXCEPTION_WHAT");
+		std::string 	errType = res.get_header_value("EXCEPTION_TYPE");
+
+		// TODO: use mappings or vectors for errType and errCode pairs.
+		if (errType == "class InitializationError")
+		{
+			errCode = 900;
+		}
+		else if (errType == "class InvalidParams")
+		{
+			errCode = 910;
+		}
+		else if (errType == "class CaptureError")
+		{
+			errCode = 911;
+		}
+		else if (errType == "class InvalidRequest")
+		{
+			errCode = 990;
+		}
+		else
+		{
+			errCode = 999;
+			errMsg = "URL error or unexpected error";
+		}
+		res.set_content(make_response(R_NG, "", errCode, errMsg), "application/json");
 	});
 
 	// set logger for request/response

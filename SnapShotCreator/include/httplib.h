@@ -3537,9 +3537,11 @@ inline bool Server::dispatch_request(Request &req, Response &res,
   } catch (const std::exception &ex) {
     res.status = 500;
     res.set_header("EXCEPTION_WHAT", ex.what());
+    res.set_header("EXCEPTION_TYPE", typeid(ex).name());
   } catch (...) {
     res.status = 500;
     res.set_header("EXCEPTION_WHAT", "UNKNOWN");
+    res.set_header("EXCEPTION_TYPE", "UNKNOWN");
   }
   return false;
 }

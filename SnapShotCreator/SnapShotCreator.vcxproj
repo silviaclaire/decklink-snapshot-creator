@@ -166,6 +166,7 @@
     <ClInclude Include="CaptureStills.h" />
     <ClInclude Include="DeckLinkAPI.h" />
     <ClInclude Include="DeckLinkInputDevice.h" />
+    <ClInclude Include="exceptions.h" />
     <ClInclude Include="ImageWriter.h" />
     <ClInclude Include="platform.h" />
     <ClInclude Include="include\httplib.h" />
