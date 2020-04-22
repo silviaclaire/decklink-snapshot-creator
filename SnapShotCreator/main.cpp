@@ -38,11 +38,9 @@ std::string dump_headers(const httplib::Headers &headers) {
 	return s;
 }
 
-std::string log(const httplib::Request &req, const httplib::Response &res) {
-	std::string s;
+std::string dump_req_and_res(const httplib::Request &req, const httplib::Response &res) {
+	std::string s = "\n";
 	char buf[BUFSIZ];
-
-	s += "--------------------------------\n";
 
 	snprintf(buf, sizeof(buf), "%s %s %s", req.method.c_str(),
 		req.version.c_str(), req.path.c_str());
@@ -61,15 +59,16 @@ std::string log(const httplib::Request &req, const httplib::Response &res) {
 
 	//s += dump_headers(req.headers);
 
+	if (!req.body.empty()) { s += req.body; }
+	s += "\n";
+
 	s += "--------------------------------\n";
 
 	snprintf(buf, sizeof(buf), "%d %s\n", res.status, res.version.c_str());
 	s += buf;
-	s += dump_headers(res.headers);
-	s += "\n";
+	//s += dump_headers(res.headers);
 
 	if (!res.body.empty()) { s += res.body; }
-
 	s += "\n";
 
 	return s;
@@ -156,6 +155,7 @@ int main(int argc, char* argv[])
 	std::string					selectedDisplayModeName;
 	std::vector<std::string>	deckLinkDeviceNames;
 
+	// Server status and logger variables
 	ServerStatus				serverStatus = INITIALIZING;
 	std::string					initializationErrMsg = "initializing";
 
@@ -342,7 +342,8 @@ int main(int argc, char* argv[])
 		// Update server status and print error
 		serverStatus = INITIALIZATION_ERROR;
 		initializationErrMsg = ex.what();
-		fprintf(stderr, "Initialization error occurred: %s\n", initializationErrMsg.c_str());
+		// TODO(low): write usage to log
+		// TODO(low): update usage in DisplayUsage
 		//CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection);
 
 		// free resources
@@ -363,7 +364,7 @@ int main(int argc, char* argv[])
 
 	// create a snapshot
 	svr.Post("/", [&](const httplib::Request &req, httplib::Response &res) {
-		std::string 							rawJson;
+		std::string 							rawJson = req.body;
 		Json::Value 							root;
 		Json::CharReaderBuilder 				jsonBuilder;
 		const std::unique_ptr<Json::CharReader>	jsonReader(jsonBuilder.newCharReader());
@@ -374,10 +375,6 @@ int main(int argc, char* argv[])
 		std::string 							imageFormat;
 		std::string 							filepath;
 		std::string 							err;
-
-		fprintf(stderr, "================================\n");
-		rawJson = req.body;
-		fprintf(stderr, "%s\n", rawJson.c_str());
 
 		// Parse JSON body
 		if (!jsonReader->parse(rawJson.c_str(), rawJson.c_str() + rawJson.length(), &root, &err))
@@ -540,7 +537,7 @@ int main(int argc, char* argv[])
 	// set logger for request/response
 	svr.set_logger([](const httplib::Request &req, const httplib::Response &res) {
 		// TODO(high): write log to file
-		printf("%s", log(req, res).c_str());
+		printf("%s", dump_req_and_res(req, res).c_str());
 	});
 
 	fprintf(stderr, "Server started at port %d.\n", portNo);
