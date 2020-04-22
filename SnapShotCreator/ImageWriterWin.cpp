@@ -61,11 +61,9 @@ HRESULT ImageWriter::UnInitialize()
 
 std::string ImageWriter::GetFilepath(const std::string& path, const std::string& prefix, const std::string& extension)
 {
-	HRESULT 					result;
-	std::string					filepath;
 	const char*					fmt = "%Y%m%d%H%M%S";
 
-	filepath = path + "\\" + prefix + Utils::CurrentDateTime(fmt) + "." + extension;
+	std::string filepath = path + "\\" + prefix + CurrentDateTime(fmt) + "." + extension;
 	return filepath;
 }
 

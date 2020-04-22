@@ -4,7 +4,7 @@
 #include <string>
 #include <time.h>
 
-namespace Utils
+namespace
 {
     // Get formatted current date/time
     const std::string CurrentDateTime(const char* fmt)
