@@ -492,8 +492,16 @@ int main(int argc, char* argv[])
 		// TODO(low): use mappings or vectors for errType and errCode pairs.
 		if (errType == "class InitializationError")
 		{
-			res.status = 500;
-			errCode = (serverStatus==INITIALIZING) ? 900 : 901;
+			if (serverStatus==INITIALIZING)
+			{
+				res.status = 200;
+				errCode = 900;
+			}
+			else
+			{
+				res.status = 500;
+				errCode = 901;
+			}
 			errMsg = "InitializationError: " + errMsg;
 		}
 		else if (errType == "class InvalidParams")
