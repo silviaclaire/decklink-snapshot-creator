@@ -49,7 +49,7 @@ public:
 	// IDeckLinkVideoFrame interface
 	virtual long			STDMETHODCALLTYPE	GetWidth(void)			{ return m_width; };
 	virtual long			STDMETHODCALLTYPE	GetHeight(void)			{ return m_height; };
-	virtual long			STDMETHODCALLTYPE	GetRowBytes(void)		{ return m_width * 3; };
+	virtual long			STDMETHODCALLTYPE	GetRowBytes(void)		{ return m_width * 4; };
 	virtual HRESULT			STDMETHODCALLTYPE	GetBytes(void** buffer);
 	virtual BMDFrameFlags	STDMETHODCALLTYPE	GetFlags(void)			{ return m_flags; };
 	virtual BMDPixelFormat	STDMETHODCALLTYPE	GetPixelFormat(void)	{ return bmdFormat8BitBGRA; };

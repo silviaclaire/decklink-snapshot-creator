@@ -35,7 +35,7 @@ Bgr24VideoFrame::Bgr24VideoFrame(long width, long height, BMDFrameFlags flags) :
 	m_width(width), m_height(height), m_flags(flags), m_refCount(1)
 {
 	// Allocate pixel buffer
-	m_pixelBuffer.resize(m_width*m_height*3);
+	m_pixelBuffer.resize(m_width*m_height*4);
 }
 
 HRESULT Bgr24VideoFrame::GetBytes(void **buffer)
