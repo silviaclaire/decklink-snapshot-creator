@@ -339,9 +339,9 @@ int main(int argc, char* argv[])
 	catch (std::exception& ex)
 	{
 		// Update server status and print error
-		fprintf(stderr, "Initialization error occurred.\n");
 		serverStatus = INITIALIZATION_ERROR;
 		initializationErrMsg = ex.what();
+		fprintf(stderr, "Initialization error occurred: %s\n", initializationErrMsg.c_str());
 		//CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection);
 
 		// free resources
