@@ -9,6 +9,7 @@
 #include <thread>
 #include <vector>
 
+#include "log.hpp"
 #include "exceptions.h"
 #include "platform.h"
 #include "ImageWriter.h"
@@ -162,7 +163,7 @@ int main(int argc, char* argv[])
 	// Initialize server
 	httplib::Server 			svr;
 	if (!svr.is_valid()) {
-		fprintf(stderr, "Server initialization failed.\n");
+		logger.e("Server initialization failed.");
 		return exitStatus;
 	}
 
@@ -313,13 +314,10 @@ int main(int argc, char* argv[])
 			throw InitializationError("Failed to start capture");
 
 		// Print the selected configuration
-		fprintf(stderr, "Capturing with the following configuration:\n"
-			" - Capture device: %s\n"
-			" - Video mode: %s\n"
-			" - Pixel format: %s\n",
-			selectedDeckLinkInput->GetDeviceName().c_str(),
-			selectedDisplayModeName.c_str(),
-			std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex]).c_str()
+		logger.d("Capturing with the following configuration:",
+			"\n - Capture device: ", selectedDeckLinkInput->GetDeviceName(),
+			"\n - Video mode: ", selectedDisplayModeName,
+			"\n - Pixel format: ", std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex])
 		);
 
 		// Wait for incoming video frame
@@ -335,13 +333,14 @@ int main(int argc, char* argv[])
 
 		// Update server status
 		serverStatus = IDLE;
-		fprintf(stderr, "System all green.\n");
+		logger.d("System all green");
 	}
 	catch (std::exception& ex)
 	{
 		// Update server status and print error
 		serverStatus = INITIALIZATION_ERROR;
 		initializationErrMsg = ex.what();
+		logger.e("Initialization error occurred: ", initializationErrMsg);
 		// TODO(low): write usage to log
 		// TODO(low): update usage in DisplayUsage
 		//CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection);
@@ -440,13 +439,10 @@ int main(int argc, char* argv[])
 			validate_request_params(captureDirectory, filenamePrefix, imageFormat);
 
 			// Print the request params
-			fprintf(stderr, "Capturing snapshot:\n"
-				" - Capture directory: %s\n"
-				" - Filename prefix: %s\n"
-				" - Image format: %s\n",
-				captureDirectory.c_str(),
-				filenamePrefix.c_str(),
-				imageFormat.c_str()
+			logger.i("Capturing snapshot:",
+				"\n - Capture directory: ", captureDirectory,
+				"\n - Filename prefix: ", filenamePrefix,
+				"\n - Image format: ", imageFormat
 			);
 
 			// Start capturing
@@ -535,12 +531,11 @@ int main(int argc, char* argv[])
 	});
 
 	// set logger for request/response
-	svr.set_logger([](const httplib::Request &req, const httplib::Response &res) {
-		// TODO(high): write log to file
-		printf("%s", dump_req_and_res(req, res).c_str());
+	svr.set_logger([&](const httplib::Request &req, const httplib::Response &res) {
+		logger.d(dump_req_and_res(req, res));
 	});
 
-	fprintf(stderr, "Server started at port %d.\n", portNo);
+	logger.i("Server started at port ", portNo);
 	svr.listen("localhost", portNo);
 
 	// All Okay.
