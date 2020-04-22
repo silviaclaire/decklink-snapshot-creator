@@ -9,6 +9,7 @@
 #include <thread>
 #include <vector>
 
+#include "Logger.h"
 #include "exceptions.h"
 #include "platform.h"
 #include "ImageWriter.h"
@@ -69,7 +70,6 @@ std::string dump_req_and_res(const httplib::Request &req, const httplib::Respons
 	//s += dump_headers(res.headers);
 
 	if (!res.body.empty()) { s += res.body; }
-	s += "\n";
 
 	return s;
 }
@@ -162,7 +162,7 @@ int main(int argc, char* argv[])
 	// Initialize server
 	httplib::Server 			svr;
 	if (!svr.is_valid()) {
-		fprintf(stderr, "Server initialization failed.\n");
+		LOGGER->Log("Server initialization failed");
 		return exitStatus;
 	}
 
@@ -313,10 +313,10 @@ int main(int argc, char* argv[])
 			throw InitializationError("Failed to start capture");
 
 		// Print the selected configuration
-		fprintf(stderr, "Capturing with the following configuration:\n"
+		LOGGER->Log("Capturing with the following configuration:\n"
 			" - Capture device: %s\n"
 			" - Video mode: %s\n"
-			" - Pixel format: %s\n",
+			" - Pixel format: %s",
 			selectedDeckLinkInput->GetDeviceName().c_str(),
 			selectedDisplayModeName.c_str(),
 			std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex]).c_str()
@@ -335,7 +335,7 @@ int main(int argc, char* argv[])
 
 		// Update server status
 		serverStatus = IDLE;
-		fprintf(stderr, "System all green.\n");
+		LOGGER->Log("System all green");
 	}
 	catch (std::exception& ex)
 	{
@@ -440,10 +440,10 @@ int main(int argc, char* argv[])
 			validate_request_params(captureDirectory, filenamePrefix, imageFormat);
 
 			// Print the request params
-			fprintf(stderr, "Capturing snapshot:\n"
+			LOGGER->Log("Capturing snapshot:\n"
 				" - Capture directory: %s\n"
 				" - Filename prefix: %s\n"
-				" - Image format: %s\n",
+				" - Image format: %s",
 				captureDirectory.c_str(),
 				filenamePrefix.c_str(),
 				imageFormat.c_str()
@@ -535,12 +535,11 @@ int main(int argc, char* argv[])
 	});
 
 	// set logger for request/response
-	svr.set_logger([](const httplib::Request &req, const httplib::Response &res) {
-		// TODO(high): write log to file
-		printf("%s", dump_req_and_res(req, res).c_str());
+	svr.set_logger([&](const httplib::Request &req, const httplib::Response &res) {
+		LOGGER->Log(dump_req_and_res(req, res).c_str());
 	});
 
-	fprintf(stderr, "Server started at port %d.\n", portNo);
+	LOGGER->Log("Server started at port %d", portNo);
 	svr.listen("localhost", portNo);
 
 	// All Okay.
