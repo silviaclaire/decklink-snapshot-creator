@@ -171,6 +171,7 @@
     <ClInclude Include="platform.h" />
     <ClInclude Include="include\httplib.h" />
     <ClInclude Include="lib_json\json_tool.h" />
+    <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Bgr24VideoFrame.cpp" />

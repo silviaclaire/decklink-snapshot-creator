@@ -73,61 +73,52 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 
 		else
 		{
-			result = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat, filepath);
-			if (result != S_OK)
+			filepath = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat);
+			fprintf(stderr, "Capturing frame to %s\n", filepath.c_str());
+
+			if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
 			{
-				err = "Unable to get filename";
-				fprintf(stderr, "%s\n", err.c_str());
-				captureRunning = false;
+				// Frame is already 8-bit BGRA - no conversion required
+				fprintf(stderr, "Frame is already 8-bit BGRA - no conversion required\n");
+				videoFrame = receivedVideoFrame;
+				videoFrame->AddRef();
 			}
 			else
 			{
-				fprintf(stderr, "Capturing frame to %s\n", filepath.c_str());
-
-				if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
+				if (imageFormat == "jpeg")
 				{
-					// Frame is already 8-bit BGRA - no conversion required
-					fprintf(stderr, "Frame is already 8-bit BGRA - no conversion required\n");
-					videoFrame = receivedVideoFrame;
-					videoFrame->AddRef();
+					// FIXME: Bgr24VideoFrame outputs incorrect images.
+					fprintf(stderr, "Converting to 24-bit BGR video frame\n");
+					videoFrame = new Bgr24VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 				}
 				else
 				{
-					if (imageFormat == "jpeg")
-					{
-						// FIXME: Bgr24VideoFrame outputs incorrect images.
-						fprintf(stderr, "Converting to 24-bit BGR video frame\n");
-						videoFrame = new Bgr24VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
-					}
-					else
-					{
-						fprintf(stderr, "Converting to 32-bit BGRA video frame\n");
-						videoFrame = new Bgra32VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
-					}
-
-					result = deckLinkFrameConverter->ConvertFrame(receivedVideoFrame, videoFrame);
-					if (FAILED(result))
-					{
-						err = "Frame conversion was unsuccessful";
-						fprintf(stderr, "%s\n", err.c_str());
-						captureRunning = false;
-					}
+					fprintf(stderr, "Converting to 32-bit BGRA video frame\n");
+					videoFrame = new Bgra32VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 				}
 
-				result = ImageWriter::WriteVideoFrameToImage(videoFrame, filepath, imageFormat);
+				result = deckLinkFrameConverter->ConvertFrame(receivedVideoFrame, videoFrame);
 				if (FAILED(result))
 				{
-					err = "Image encoding to file was unsuccessful";
+					err = "Frame conversion was unsuccessful";
 					fprintf(stderr, "%s\n", err.c_str());
 					captureRunning = false;
 				}
+			}
 
-				videoFrame->Release();
-
-				err = "";
-				fprintf(stderr, "Capture completed\n");
+			result = ImageWriter::WriteVideoFrameToImage(videoFrame, filepath, imageFormat);
+			if (FAILED(result))
+			{
+				err = "Image encoding to file was unsuccessful";
+				fprintf(stderr, "%s\n", err.c_str());
 				captureRunning = false;
 			}
+
+			videoFrame->Release();
+
+			err = "";
+			fprintf(stderr, "Capture completed\n");
+			captureRunning = false;
 		}
 
 		if (receivedVideoFrame != NULL)

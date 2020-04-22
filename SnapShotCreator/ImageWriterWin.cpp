@@ -28,9 +28,8 @@
 #include <wincodec.h>		// For handing bitmap files
 #include <atlstr.h>
 #include <algorithm>
-#include <sstream>
-#include <locale>
 
+#include "utils.h"
 #include "ImageWriter.h"
 
 namespace ImageWriter
@@ -60,28 +59,14 @@ HRESULT ImageWriter::UnInitialize()
 	return S_OK;
 }
 
-HRESULT ImageWriter::GetFilepath(const std::string& path, const std::string& prefix, const std::string& extension, std::string& filepath)
+std::string ImageWriter::GetFilepath(const std::string& path, const std::string& prefix, const std::string& extension)
 {
 	HRESULT 					result;
-	std::stringstream 			timeString;
-	time_t						now = time(0);
-	tm							t;
+	std::string					filepath;
 	const char*					fmt = "%Y%m%d%H%M%S";
-	const std::time_put<char>& 	dateWriter = std::use_facet<std::time_put<char>>(timeString.getloc());
 
-	localtime_s(&t, &now);
-	if (dateWriter.put(timeString, timeString, ' ', &t, fmt, fmt+strlen(fmt)).failed())
-	{
-		fprintf(stderr, "Failed to format datatime\n");
-		result = E_FAIL;
-	}
-	else
-	{
-		filepath = path + "\\" + prefix + timeString.str() + "." + extension;
-		result = S_OK;
-	}
-
-	return result;
+	filepath = path + "\\" + prefix + Utils::CurrentDateTime(fmt) + "." + extension;
+	return filepath;
 }
 
 HRESULT ImageWriter::WriteVideoFrameToImage(IDeckLinkVideoFrame* videoFrame, const std::string& imgFilename, const std::string& imageFormat)
