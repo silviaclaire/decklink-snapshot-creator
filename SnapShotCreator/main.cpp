@@ -104,30 +104,31 @@ void validate_request_params(const std::string captureDirectory, const std::stri
 	}
 }
 
-std::string make_response(const std::string& result, const std::string& body="", const int& errCode=0, const std::string& errMsg="")
+std::string make_response(const std::string& result, const std::string& filepathString="", const int& errCode=0, const std::string& errMsg="")
 {
-	char *fmt = NULL;
-	char buf[BUFSIZ];
+	Json::StreamWriterBuilder builder;
+	std::string jsonString;
+	Json::Value root;
+	Json::Value response;
+	Json::Value body;
+	Json::Value filepath;
 
 	if (result == R_OK) {
-		if (body.empty())
+		if (!filepathString.empty())
 		{
-			fmt = R"({"response":"%s", "body":{}})";
-			snprintf(buf, sizeof(buf), fmt, result.c_str());
-		}
-		else
-		{
-			// TODO(high): escape '\' characters in body
-			fmt = R"({"response":"%s", "body":%s})";
-			snprintf(buf, sizeof(buf), fmt, result.c_str(), body.c_str());
+			body["filepath"] = filepathString;
 		}
 	}
 	else
 	{
-		fmt = R"({"response":"%s", "body":{"code":%d, "message":"%s"}})";
-		snprintf(buf, sizeof(buf), fmt, result.c_str(), errCode, errMsg.c_str());
+		body["code"] = errCode;
+		body["message"] = errMsg;
 	}
-	return buf;
+
+	root["response"] = result;
+	root["body"] = body;
+	jsonString = Json::writeString(builder, root);
+	return jsonString;
 }
 
 int main(int argc, char* argv[])
@@ -471,9 +472,9 @@ int main(int argc, char* argv[])
 			// Check result
 			if (!err.empty())
 			{
-				throw CaptureError(err+"'"+filepath+"'");
+				throw CaptureError(err);
 			}
-			res.set_content(make_response(R_OK, R"({"filePath":")"+filepath+R"("})"), "application/json");
+			res.set_content(make_response(R_OK, filepath), "application/json");
 		}
 		else
 		{
