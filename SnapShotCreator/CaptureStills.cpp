@@ -36,10 +36,9 @@
 
 #include "CaptureStills.h"
 
-void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const int captureInterval, const int framesToCapture,
-	const std::string& captureDirectory, const std::string& filenamePrefix, const std::string& imageFormat)
+void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std::string& captureDirectory, const std::string& filenamePrefix, const std::string& imageFormat,
+	std::string& filepath, std::string& err)
 {
-	int							captureFrameCount = 0;
 	HRESULT						result = S_OK;
 	bool						captureRunning = true;
 
@@ -47,39 +46,48 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const int
 	IDeckLinkVideoConversion*	deckLinkFrameConverter = NULL;
 	IDeckLinkVideoFrame*		videoFrame = NULL;
 
+	// Unknown error if not overridden
+	err = "Unknown error";
+
 	// Create frame conversion instance
 	result = GetDeckLinkVideoConversion(&deckLinkFrameConverter);
 	if (result != S_OK)
+	{
+		err = "Failed to get DeckLink frame converter";
+		fprintf(stderr, "%s\n", err.c_str());
 		return;
+	}
 
 	while (captureRunning)
 	{
 		bool captureCancelled;
 		if (!deckLinkInput->WaitForVideoFrameArrived(&receivedVideoFrame, captureCancelled))
 		{
-			fprintf(stderr, "Timeout waiting for valid frame\n");
+			err = "Timeout waiting for valid frame";
+			fprintf(stderr, "%s\n", err.c_str());
 			captureRunning = false;
 		}
 
 		else if (captureCancelled)
 			captureRunning = false;
 
-		else if ((++captureFrameCount % captureInterval) == 0)
+		else
 		{
-			std::string outputFileName;
-			result = ImageWriter::GetNextFilenameWithPrefix(captureDirectory, filenamePrefix, imageFormat, outputFileName);
+			result = ImageWriter::GetNextFilenameWithPrefix(captureDirectory, filenamePrefix, imageFormat, filepath);
 			if (result != S_OK)
 			{
-				fprintf(stderr, "Unable to get filename\n");
+				err = "Unable to get filename";
+				fprintf(stderr, "%s\n", err.c_str());
 				captureRunning = false;
 			}
 			else
 			{
-				fprintf(stderr, "Capturing frame #%d to %s\n", captureFrameCount, outputFileName.c_str());
+				fprintf(stderr, "Capturing frame to %s\n", filepath.c_str());
 
 				if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
 				{
 					// Frame is already 8-bit BGRA - no conversion required
+					fprintf(stderr, "Frame is already 8-bit BGRA - no conversion required\n");
 					videoFrame = receivedVideoFrame;
 					videoFrame->AddRef();
 				}
@@ -88,35 +96,37 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const int
 					if (imageFormat == "jpeg")
 					{
 						// FIXME: Bgr24VideoFrame outputs incorrect images.
+						fprintf(stderr, "Converting to 24-bit BGR video frame\n");
 						videoFrame = new Bgr24VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 					}
 					else
 					{
+						fprintf(stderr, "Converting to 32-bit BGRA video frame\n");
 						videoFrame = new Bgra32VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 					}
 
 					result = deckLinkFrameConverter->ConvertFrame(receivedVideoFrame, videoFrame);
 					if (FAILED(result))
 					{
-						fprintf(stderr, "Frame conversion was unsuccessful\n");
+						err = "Frame conversion was unsuccessful";
+						fprintf(stderr, "%s\n", err.c_str());
 						captureRunning = false;
 					}
 				}
 
-				result = ImageWriter::WriteVideoFrameToImage(videoFrame, outputFileName, imageFormat);
+				result = ImageWriter::WriteVideoFrameToImage(videoFrame, filepath, imageFormat);
 				if (FAILED(result))
 				{
-					fprintf(stderr, "Image encoding to file was unsuccessful\n");
+					err = "Image encoding to file was unsuccessful";
+					fprintf(stderr, "%s\n", err.c_str());
 					captureRunning = false;
 				}
 
 				videoFrame->Release();
 
-				if ((captureFrameCount / captureInterval) >= framesToCapture)
-				{
-					fprintf(stderr, "Capture completed\n");
-					captureRunning = false;
-				}
+				err = "";
+				fprintf(stderr, "Capture completed\n");
+				captureRunning = false;
 			}
 		}
 

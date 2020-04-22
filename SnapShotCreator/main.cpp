@@ -75,7 +75,7 @@ std::string log(const httplib::Request &req, const httplib::Response &res) {
 	return s;
 }
 
-void validateRequestParams(const std::string captureDirectory, const std::string filenamePrefix, const std::string imageFormat)
+void validate_request_params(const std::string captureDirectory, const std::string filenamePrefix, const std::string imageFormat)
 {
 	// validate captureDirectory
 	if (captureDirectory.empty())
@@ -117,6 +117,7 @@ std::string make_response(const std::string& result, const std::string& body="",
 		}
 		else
 		{
+			// TODO(high): escape '\' characters in body
 			fmt = R"({"response":"%s", "body":%s})";
 			snprintf(buf, sizeof(buf), fmt, result.c_str(), body.c_str());
 		}
@@ -135,8 +136,6 @@ int main(int argc, char* argv[])
 	bool						displayHelp = false;
 	int							deckLinkIndex = -1;
 	int							displayModeIndex = -2;
-	int							framesToCapture = 1;
-	int							captureInterval = 1;
 	int							pixelFormatIndex = 0;
 	int							portNo = -1;
 	bool						enableFormatDetection = false;
@@ -166,6 +165,7 @@ int main(int argc, char* argv[])
 		return exitStatus;
 	}
 
+	// Initialize input device
 	try
 	{
 		// Initialize COM on this thread
@@ -188,12 +188,6 @@ int main(int argc, char* argv[])
 
 			else if (strcmp(argv[i], "-m") == 0)
 				displayModeIndex = atoi(argv[++i]);
-
-			else if (strcmp(argv[i], "-i") == 0)
-				captureInterval = atoi(argv[++i]);
-
-			else if (strcmp(argv[i], "-n") == 0)
-				framesToCapture = atoi(argv[++i]);
 
 			else if (strcmp(argv[i], "-f") == 0)
 				pixelFormatIndex = atoi(argv[++i]);
@@ -256,64 +250,60 @@ int main(int argc, char* argv[])
 
 		// Get display modes from the selected decklink output
 		// TODO(low): move to CaptureStills.cpp
-		if (selectedDeckLinkInput != NULL)
+		if (selectedDeckLinkInput == NULL)
+			throw InitializationError("Invalid input device selected");
+
+		result = selectedDeckLinkInput->Init();
+		if (result != S_OK)
+			throw InitializationError("Unable to initialize DeckLink input interface");
+
+		// Get the display mode
+		if ((displayModeIndex < -1) || (displayModeIndex >= (int)selectedDeckLinkInput->GetDisplayModeList().size()))
+			throw InitializationError("You must select a valid display mode");
+
+		if (displayModeIndex == -1)
 		{
-			result = selectedDeckLinkInput->Init();
-			if (result != S_OK)
-				throw InitializationError("Unable to initialize DeckLink input interface");
+			if (!supportsFormatDetection)
+				throw InitializationError("Format detection is not supported on this device");
 
-			// Get the display mode
-			if ((displayModeIndex < -1) || (displayModeIndex >= (int)selectedDeckLinkInput->GetDisplayModeList().size()))
-				throw InitializationError("You must select a valid display mode");
+			enableFormatDetection = true;
 
-			if (displayModeIndex == -1)
-			{
-				if (!supportsFormatDetection)
-					throw InitializationError("Format detection is not supported on this device");
-
-				enableFormatDetection = true;
-
-				// Format detection still needs a valid mode to start with
-				selectedDisplayMode = bmdModeNTSC;
-				selectedDisplayModeName = "Automatic mode detection";
-				pixelFormatIndex = 0;
-			}
-			else if ((pixelFormatIndex < 0) || (pixelFormatIndex >= (int)kSupportedPixelFormats.size()))
-			{
-				throw InitializationError("You must select a valid pixel format");
-			}
-			else
-			{
-				dlbool_t				displayModeSupported;
-				dlstring_t				displayModeNameStr;
-				IDeckLinkDisplayMode*	displayMode = selectedDeckLinkInput->GetDisplayModeList()[displayModeIndex];
-
-				result = displayMode->GetName(&displayModeNameStr);
-				if (result == S_OK)
-				{
-					selectedDisplayModeName = DlToStdString(displayModeNameStr);
-					DeleteString(displayModeNameStr);
-				}
-
-				selectedDisplayMode = displayMode->GetDisplayMode();
-
-				// Check display mode is supported with given options
-				result = selectedDeckLinkInput->GetDeckLinkInput()->DoesSupportVideoMode(bmdVideoConnectionUnspecified,
-					selectedDisplayMode,
-					std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]),
-					bmdNoVideoInputConversion,
-					bmdSupportedVideoModeDefault,
-					NULL,
-					&displayModeSupported);
-				if ((result != S_OK) || (!displayModeSupported))
-				{
-					throw InitializationError("Display mode "+selectedDisplayModeName+" with pixel format "+std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex])+" is not supported by device");
-				}
-			}
+			// Format detection still needs a valid mode to start with
+			selectedDisplayMode = bmdModeNTSC;
+			selectedDisplayModeName = "Automatic mode detection";
+			pixelFormatIndex = 0;
+		}
+		else if ((pixelFormatIndex < 0) || (pixelFormatIndex >= (int)kSupportedPixelFormats.size()))
+		{
+			throw InitializationError("You must select a valid pixel format");
 		}
 		else
 		{
-			throw InitializationError("Invalid input device selected");
+			dlbool_t				displayModeSupported;
+			dlstring_t				displayModeNameStr;
+			IDeckLinkDisplayMode*	displayMode = selectedDeckLinkInput->GetDisplayModeList()[displayModeIndex];
+
+			result = displayMode->GetName(&displayModeNameStr);
+			if (result == S_OK)
+			{
+				selectedDisplayModeName = DlToStdString(displayModeNameStr);
+				DeleteString(displayModeNameStr);
+			}
+
+			selectedDisplayMode = displayMode->GetDisplayMode();
+
+			// Check display mode is supported with given options
+			result = selectedDeckLinkInput->GetDeckLinkInput()->DoesSupportVideoMode(bmdVideoConnectionUnspecified,
+				selectedDisplayMode,
+				std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]),
+				bmdNoVideoInputConversion,
+				bmdSupportedVideoModeDefault,
+				NULL,
+				&displayModeSupported);
+			if ((result != S_OK) || (!displayModeSupported))
+			{
+				throw InitializationError("Display mode "+selectedDisplayModeName+" with pixel format "+std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex])+" is not supported by device");
+			}
 		}
 
 		// Try capturing
@@ -325,14 +315,10 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "Capturing with the following configuration:\n"
 			" - Capture device: %s\n"
 			" - Video mode: %s\n"
-			" - Pixel format: %s\n"
-			" - Frames to capture: %d\n"
-			" - Capture interval: %d\n",
+			" - Pixel format: %s\n",
 			selectedDeckLinkInput->GetDeviceName().c_str(),
 			selectedDisplayModeName.c_str(),
-			std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex]).c_str(),
-			framesToCapture,
-			captureInterval
+			std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex]).c_str()
 		);
 
 		// Wait for incoming video frame
@@ -385,8 +371,8 @@ int main(int argc, char* argv[])
 		std::string 							captureDirectory;
 		std::string 							filenamePrefix;
 		std::string 							imageFormat;
-		// TODO(low): get rid of the belowing variable
-		std::string 							err = "";
+		std::string 							filepath;
+		std::string 							err;
 
 		fprintf(stderr, "================================\n");
 		rawJson = req.body;
@@ -453,7 +439,7 @@ int main(int argc, char* argv[])
 			captureDirectory = root["data"].get("outputDirectory", "").asCString();
 			filenamePrefix = root["data"].get("filenamePrefix", "").asCString();
 			imageFormat = root["data"].get("imageFormat", "").asCString();
-			validateRequestParams(captureDirectory, filenamePrefix, imageFormat);
+			validate_request_params(captureDirectory, filenamePrefix, imageFormat);
 
 			// Print the request params
 			fprintf(stderr, "Capturing snapshot:\n"
@@ -471,10 +457,8 @@ int main(int argc, char* argv[])
 				throw CaptureError("failed to start capture");
 
 			// Start thread for capture processing
-			// TODO(high): Get file path as return if success
-			// TODO(high): Catch exception from thread if failed
 			captureStillsThread = std::thread([&] {
-				CaptureStills::CreateSnapshot(selectedDeckLinkInput, captureInterval, framesToCapture, captureDirectory, filenamePrefix, imageFormat);
+				CaptureStills::CreateSnapshot(selectedDeckLinkInput, captureDirectory, filenamePrefix, imageFormat, filepath, err);
 			});
 			// Wait on return of main capture stills thread
 			captureStillsThread.join();
@@ -483,7 +467,13 @@ int main(int argc, char* argv[])
 
 			// Update server status
 			serverStatus = IDLE;
-			res.set_content(make_response(R_OK, ""), "application/json");
+
+			// Check result
+			if (!err.empty())
+			{
+				throw CaptureError(err+"'"+filepath+"'");
+			}
+			res.set_content(make_response(R_OK, R"({"filePath":")"+filepath+R"("})"), "application/json");
 		}
 		else
 		{

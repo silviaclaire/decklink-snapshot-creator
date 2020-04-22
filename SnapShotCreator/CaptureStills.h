@@ -36,6 +36,6 @@ namespace CaptureStills
 {
 	void DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, const std::vector<std::string>& deviceNames,
 		const int selectedDeviceIndex, const int selectedDisplayModeIndex, const bool supportsFormatDetection);
-	void CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const int captureInterval, const int framesToCapture,
-		const std::string& captureDirectory, const std::string& filenamePrefix, const std::string& imageFormat);
+	void CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std::string& captureDirectory, const std::string& filenamePrefix,
+		const std::string& imageFormat, std::string& filepath, std::string& err);
 }
