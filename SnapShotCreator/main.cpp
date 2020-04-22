@@ -501,31 +501,38 @@ int main(int argc, char* argv[])
 		// TODO(low): use mappings or vectors for errType and errCode pairs.
 		if (errType == "class InitializationError")
 		{
+			res.status = 500;
 			errCode = (serverStatus==INITIALIZING) ? 900 : 901;
 			errMsg = "InitializationError: " + errMsg;
 		}
 		else if (errType == "class InvalidParams")
 		{
+			res.status = 400;
 			errCode = 910;
 			errMsg = "InvalidParams: " + errMsg;
 			serverStatus = IDLE;
 		}
 		else if (errType == "class CaptureError")
 		{
+			res.status = 500;
 			errCode = 911;
 			errMsg = "CaptureError: " + errMsg;
 			serverStatus = IDLE;
 		}
-		else if (errType == "class InvalidRequest")
+		else if (errType == "class InvalidRequest" || errType.empty())
 		{
+			res.status = 400;
 			errCode = 990;
+			if (errType.empty())
+				errMsg = "URL error";
 			errMsg = "InvalidRequest: " + errMsg;
 			serverStatus = IDLE;
 		}
 		else
 		{
+			res.status = 500;
 			errCode = 999;
-			errMsg = "URL error or unexpected error";
+			errMsg = "Unknown error";
 			serverStatus = IDLE;
 		}
 		res.set_content(make_response(R_NG, "", errCode, errMsg), "application/json");
