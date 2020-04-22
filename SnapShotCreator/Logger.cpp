@@ -15,7 +15,7 @@ CLogger* CLogger::GetLogger(){
     return m_pThis;
 }
 
-void CLogger::Log(const char * format, ...)
+void CLogger::Log(LogLevel level, const char * format, ...)
 {
     char* sMessage = NULL;
     int nLength = 0;
@@ -27,16 +27,26 @@ void CLogger::Log(const char * format, ...)
     sMessage = new char[nLength];
     vsprintf_s(sMessage, nLength, format, args);
     //vsprintf(sMessage, format, args);
-    m_Logfile << CurrentDateTime(fmt) << ":\t";
+    std::string logLevelName =
+        level == DEBUG   ?   " [DEBUG  ] " :
+        level == INFO    ?   " [INFO   ] " :
+        level == WARNING ?   " [WARNING] " :
+        /*level == ERROR*/   " [ERROR  ] ";
+    m_Logfile << CurrentDateTime(fmt) << logLevelName;
     m_Logfile << sMessage << "\n";
     va_end(args);
 
     delete [] sMessage;
 }
 
-void CLogger::Log(const std::string& sMessage)
+void CLogger::Log(LogLevel level, const std::string& sMessage)
 {
-    m_Logfile <<  CurrentDateTime(fmt) << ":\t";
+    std::string logLevelName =
+        level == DEBUG   ?   " [DEBUG  ] " :
+        level == INFO    ?   " [INFO   ] " :
+        level == WARNING ?   " [WARNING] " :
+        /*level == ERROR*/   " [ERROR  ] ";
+    m_Logfile <<  CurrentDateTime(fmt) << logLevelName;
     m_Logfile << sMessage << "\n";
 }
 

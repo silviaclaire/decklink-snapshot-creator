@@ -162,7 +162,7 @@ int main(int argc, char* argv[])
 	// Initialize server
 	httplib::Server 			svr;
 	if (!svr.is_valid()) {
-		LOGGER->Log("Server initialization failed");
+		LOGGER->Log(LOG_ERROR, "Server initialization failed");
 		return exitStatus;
 	}
 
@@ -313,7 +313,7 @@ int main(int argc, char* argv[])
 			throw InitializationError("Failed to start capture");
 
 		// Print the selected configuration
-		LOGGER->Log("Capturing with the following configuration:\n"
+		LOGGER->Log(LOG_DEBUG, "Capturing with the following configuration:\n"
 			" - Capture device: %s\n"
 			" - Video mode: %s\n"
 			" - Pixel format: %s",
@@ -335,7 +335,7 @@ int main(int argc, char* argv[])
 
 		// Update server status
 		serverStatus = IDLE;
-		LOGGER->Log("System all green");
+		LOGGER->Log(LOG_DEBUG, "System all green");
 	}
 	catch (std::exception& ex)
 	{
@@ -440,7 +440,7 @@ int main(int argc, char* argv[])
 			validate_request_params(captureDirectory, filenamePrefix, imageFormat);
 
 			// Print the request params
-			LOGGER->Log("Capturing snapshot:\n"
+			LOGGER->Log(LOG_DEBUG, "Capturing snapshot:\n"
 				" - Capture directory: %s\n"
 				" - Filename prefix: %s\n"
 				" - Image format: %s",
@@ -489,23 +489,26 @@ int main(int argc, char* argv[])
 		// TODO(low): use mappings or vectors for errType and errCode pairs.
 		if (errType == "class InitializationError")
 		{
+			errMsg = "Initialization: " + errMsg;
 			if (serverStatus==INITIALIZING)
 			{
 				res.status = 200;
 				errCode = 900;
+				LOGGER->Log(LOG_WARNING, errMsg);
 			}
 			else
 			{
 				res.status = 500;
 				errCode = 901;
+				LOGGER->Log(LOG_ERROR, errMsg);
 			}
-			errMsg = "InitializationError: " + errMsg;
 		}
 		else if (errType == "class InvalidParams")
 		{
 			res.status = 400;
 			errCode = 910;
 			errMsg = "InvalidParams: " + errMsg;
+			LOGGER->Log(LOG_WARNING, errMsg);
 			serverStatus = IDLE;
 		}
 		else if (errType == "class CaptureError")
@@ -513,6 +516,7 @@ int main(int argc, char* argv[])
 			res.status = 500;
 			errCode = 911;
 			errMsg = "CaptureError: " + errMsg;
+			LOGGER->Log(LOG_ERROR, errMsg);
 			serverStatus = IDLE;
 		}
 		else if (errType == "class InvalidRequest" || errType.empty())
@@ -522,6 +526,7 @@ int main(int argc, char* argv[])
 			if (errType.empty())
 				errMsg = "URL error";
 			errMsg = "InvalidRequest: " + errMsg;
+			LOGGER->Log(LOG_WARNING, errMsg);
 			serverStatus = IDLE;
 		}
 		else
@@ -529,6 +534,7 @@ int main(int argc, char* argv[])
 			res.status = 500;
 			errCode = 999;
 			errMsg = "Unknown error";
+			LOGGER->Log(LOG_ERROR, errMsg);
 			serverStatus = IDLE;
 		}
 		res.set_content(make_response(R_NG, "", errCode, errMsg), "application/json");
@@ -536,10 +542,10 @@ int main(int argc, char* argv[])
 
 	// set logger for request/response
 	svr.set_logger([&](const httplib::Request &req, const httplib::Response &res) {
-		LOGGER->Log(dump_req_and_res(req, res).c_str());
+		LOGGER->Log(LOG_DEBUG, dump_req_and_res(req, res).c_str());
 	});
 
-	LOGGER->Log("Server started at port %d", portNo);
+	LOGGER->Log(LOG_INFO, "Server started at port %d", portNo);
 	svr.listen("localhost", portNo);
 
 	// All Okay.

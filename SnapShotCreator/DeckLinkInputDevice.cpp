@@ -69,7 +69,7 @@ HRESULT DeckLinkInputDevice::Init()
 	result = m_deckLink->QueryInterface(IID_IDeckLinkInput, (void**)&m_deckLinkInput);
 	if (result != S_OK)
 	{
-		LOGGER->Log("Unable to get IDeckLinkInput interface");
+		LOGGER->Log(LOG_ERROR, "Unable to get IDeckLinkInput interface");
 		goto bail;
 	}
 
@@ -77,7 +77,7 @@ HRESULT DeckLinkInputDevice::Init()
 	result = m_deckLinkInput->GetDisplayModeIterator(&displayModeIterator);
 	if (result != S_OK)
 	{
-		LOGGER->Log("Unable to get IDeckLinkDisplayModeIterator interface");
+		LOGGER->Log(LOG_ERROR, "Unable to get IDeckLinkDisplayModeIterator interface");
 		goto bail;
 	}
 
@@ -125,7 +125,7 @@ HRESULT DeckLinkInputDevice::StartCapture(BMDDisplayMode displayMode, BMDPixelFo
 	result = m_deckLinkInput->EnableVideoInput(displayMode, pixelFormat, inputFlags);
 	if (result != S_OK)
 	{
-		LOGGER->Log("Unable to enable video input. Perhaps, the selected device is currently in-use.");
+		LOGGER->Log(LOG_ERROR, "Unable to enable video input. Perhaps, the selected device is currently in-use.");
 		goto bail;
 	}
 
@@ -133,11 +133,11 @@ HRESULT DeckLinkInputDevice::StartCapture(BMDDisplayMode displayMode, BMDPixelFo
 	result = m_deckLinkInput->StartStreams();
 	if (result != S_OK)
 	{
-		LOGGER->Log("Unable to start input streams");
+		LOGGER->Log(LOG_ERROR, "Unable to start input streams");
 		goto bail;
 	}
 
-	LOGGER->Log("Capture started");
+	LOGGER->Log(LOG_DEBUG, "Capture started");
 
 bail:
 	return result;
@@ -177,11 +177,11 @@ void DeckLinkInputDevice::StopCapture()
 		// Disable video input
 		m_deckLinkInput->DisableVideoInput();
 
-		LOGGER->Log("Capture stopped");
+		LOGGER->Log(LOG_DEBUG, "Capture stopped");
 	}
 	else
 	{
-		LOGGER->Log("DeckLinkInputDevice not defined");
+		LOGGER->Log(LOG_ERROR, "DeckLinkInputDevice not defined");
 	}
 }
 
@@ -218,7 +218,7 @@ HRESULT DeckLinkInputDevice::VideoInputFormatChanged(/* in */ BMDVideoInputForma
 	result = m_deckLinkInput->EnableVideoInput(newMode->GetDisplayMode(), pixelFormat, bmdVideoInputEnableFormatDetection);
 	if (result != S_OK)
 	{
-		LOGGER->Log("Unable to re-enable video input on auto-format detection");
+		LOGGER->Log(LOG_ERROR, "Unable to re-enable video input on auto-format detection");
 		goto bail;
 	}
 
@@ -226,7 +226,7 @@ HRESULT DeckLinkInputDevice::VideoInputFormatChanged(/* in */ BMDVideoInputForma
 	result = m_deckLinkInput->StartStreams();
 	if (result != S_OK)
 	{
-		LOGGER->Log("Unable to restart streams on auto-format detection");
+		LOGGER->Log(LOG_ERROR, "Unable to restart streams on auto-format detection");
 		goto bail;
 	}
 
@@ -234,11 +234,11 @@ HRESULT DeckLinkInputDevice::VideoInputFormatChanged(/* in */ BMDVideoInputForma
 
 	if (result == S_OK)
 	{
-		LOGGER->Log("Video format changed to  %s %s", DlToCString(displayModeNameStr), (detectedSignalFlags & bmdDetectedVideoInputRGB444) ? "RGB" : "YUV");
+		LOGGER->Log(LOG_DEBUG, "Video format changed to  %s %s", DlToCString(displayModeNameStr), (detectedSignalFlags & bmdDetectedVideoInputRGB444) ? "RGB" : "YUV");
 		DeleteString(displayModeNameStr);
 	}
 	else
-		LOGGER->Log("Unable to get new video format name");
+		LOGGER->Log(LOG_ERROR, "Unable to get new video format name");
 
 bail:
 	return result;

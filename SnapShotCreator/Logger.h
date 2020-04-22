@@ -7,6 +7,10 @@
 #include <string>
 
 #define LOGGER CLogger::GetLogger()
+#define LOG_DEBUG CLogger::LogLevel::DEBUG
+#define LOG_INFO CLogger::LogLevel::INFO
+#define LOG_WARNING CLogger::LogLevel::WARNING
+#define LOG_ERROR CLogger::LogLevel::ERR
 /**
 *   Singleton Logger Class.
 */
@@ -17,12 +21,14 @@ public:
     *   Logs a message
     *   @param sMessage message to be logged.
     */
-    void Log(const std::string& sMessage);
+   	enum LogLevel { DEBUG, INFO, WARNING, ERR };
+
+    void Log(LogLevel level, const std::string& sMessage);
     /**
     *   Variable Length Logger function
     *   @param format string for the message to be logged.
     */
-    void Log(const char * format, ...);
+    void Log(LogLevel level, const char * format, ...);
     /**
     *   << overloaded function to Logs a message
     *   @param sMessage message to be logged.

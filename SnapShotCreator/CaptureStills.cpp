@@ -55,7 +55,7 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 	if (result != S_OK)
 	{
 		err = "Failed to get DeckLink frame converter";
-		LOGGER->Log(err.c_str());
+		LOGGER->Log(LOG_ERROR, err.c_str());
 		return;
 	}
 
@@ -65,7 +65,7 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 		if (!deckLinkInput->WaitForVideoFrameArrived(&receivedVideoFrame, captureCancelled))
 		{
 			err = "Timeout waiting for valid frame";
-			LOGGER->Log(err.c_str());
+			LOGGER->Log(LOG_ERROR, err.c_str());
 			captureRunning = false;
 		}
 
@@ -75,12 +75,12 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 		else
 		{
 			filepath = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat);
-			LOGGER->Log("Capturing frame to %s", filepath.c_str());
+			LOGGER->Log(LOG_INFO, "Capturing frame to %s", filepath.c_str());
 
 			if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
 			{
 				// Frame is already 8-bit BGRA - no conversion required
-				LOGGER->Log("Frame is already 8-bit BGRA - no conversion required");
+				LOGGER->Log(LOG_DEBUG, "Frame is already 8-bit BGRA - no conversion required");
 				videoFrame = receivedVideoFrame;
 				videoFrame->AddRef();
 			}
@@ -89,12 +89,12 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 				if (imageFormat == "jpeg")
 				{
 					// FIXME: Bgr24VideoFrame outputs incorrect images.
-					LOGGER->Log("Converting to 24-bit BGR video frame");
+					LOGGER->Log(LOG_DEBUG, "Converting to 24-bit BGR video frame");
 					videoFrame = new Bgr24VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 				}
 				else
 				{
-					LOGGER->Log("Converting to 32-bit BGRA video frame");
+					LOGGER->Log(LOG_DEBUG, "Converting to 32-bit BGRA video frame");
 					videoFrame = new Bgra32VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 				}
 
@@ -102,7 +102,7 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 				if (FAILED(result))
 				{
 					err = "Frame conversion was unsuccessful";
-					LOGGER->Log(err.c_str());
+					LOGGER->Log(LOG_ERROR, err.c_str());
 					captureRunning = false;
 				}
 			}
@@ -111,14 +111,14 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 			if (FAILED(result))
 			{
 				err = "Image encoding to file was unsuccessful";
-				LOGGER->Log(err.c_str());
+				LOGGER->Log(LOG_ERROR, err.c_str());
 				captureRunning = false;
 			}
 
 			videoFrame->Release();
 
 			err = "";
-			LOGGER->Log("Capture completed");
+			LOGGER->Log(LOG_INFO, "Capture completed");
 			captureRunning = false;
 		}
 
