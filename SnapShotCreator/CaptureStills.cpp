@@ -73,7 +73,7 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 
 		else
 		{
-			result = ImageWriter::GetNextFilenameWithPrefix(captureDirectory, filenamePrefix, imageFormat, filepath);
+			result = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat, filepath);
 			if (result != S_OK)
 			{
 				err = "Unable to get filename";

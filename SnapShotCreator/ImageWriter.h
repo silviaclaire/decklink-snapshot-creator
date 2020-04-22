@@ -38,6 +38,6 @@ namespace ImageWriter
 	HRESULT Initialize(void);
 	HRESULT UnInitialize(void);
 
-	HRESULT GetNextFilenameWithPrefix(const std::string& path, const std::string& filenamePrefix, const std::string& imageFormat, std::string& nextFileName);
+	HRESULT GetFilepath(const std::string& path, const std::string& filenamePrefix, const std::string& imageFormat, std::string& filepath);
 	HRESULT WriteVideoFrameToImage(IDeckLinkVideoFrame* videoFrame, const std::string& imgFilename, const std::string& imageFormat);
 };

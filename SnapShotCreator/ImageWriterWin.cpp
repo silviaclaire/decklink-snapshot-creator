@@ -28,6 +28,9 @@
 #include <wincodec.h>		// For handing bitmap files
 #include <atlstr.h>
 #include <algorithm>
+#include <sstream>
+#include <locale>
+
 #include "ImageWriter.h"
 
 namespace ImageWriter
@@ -57,24 +60,25 @@ HRESULT ImageWriter::UnInitialize()
 	return S_OK;
 }
 
-HRESULT ImageWriter::GetNextFilenameWithPrefix(const std::string& path, const std::string& prefix,
-											   const std::string& extension, std::string& nextFileName)
+HRESULT ImageWriter::GetFilepath(const std::string& path, const std::string& prefix, const std::string& extension, std::string& filepath)
 {
-	HRESULT result = E_FAIL;
-	static int idx = 0;
+	HRESULT 					result;
+	std::stringstream 			timeString;
+	time_t						now = time(0);
+	tm							t;
+	const char*					fmt = "%Y%m%d%H%M%S";
+	const std::time_put<char>& 	dateWriter = std::use_facet<std::time_put<char>>(timeString.getloc());
 
-	while (idx < 10000)
+	localtime_s(&t, &now);
+	if (dateWriter.put(timeString, timeString, ' ', &t, fmt, fmt+strlen(fmt)).failed())
 	{
-		CString	filename;
-		// TODO(high): use prefix_YYYYMMDDhhmmss
-		filename.Format(_T("%s\\%s%.4d.%s"), CString(path.c_str()), CString(prefix.c_str()), idx++, CString(extension.c_str()));
-
-		if (!PathFileExists(filename))
-		{
-			nextFileName = std::string(CT2CA(filename.GetString()));
-			result = S_OK;
-			break;
-		}
+		fprintf(stderr, "Failed to format datatime\n");
+		result = E_FAIL;
+	}
+	else
+	{
+		filepath = path + "\\" + prefix + timeString.str() + "." + extension;
+		result = S_OK;
 	}
 
 	return result;
