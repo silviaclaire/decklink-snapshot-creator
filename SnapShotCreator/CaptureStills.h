@@ -35,7 +35,7 @@ const std::list<std::string> supportedImageFormats = {
 namespace CaptureStills
 {
 	void DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, const std::vector<std::string>& deviceNames,
-		const int selectedDeviceIndex, const int selectedDisplayModeIndex, const bool supportsFormatDetection);
+		const int selectedDeviceIndex, const int selectedDisplayModeIndex, const bool supportsFormatDetection, const int portNo);
 	void CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std::string& captureDirectory, const std::string& filenamePrefix,
 		const std::string& imageFormat, std::string& filepath, std::string& err);
 }

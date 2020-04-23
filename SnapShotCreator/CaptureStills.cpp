@@ -137,29 +137,27 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 }
 
 void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, const std::vector<std::string>& deviceNames,
-	const int selectedDeviceIndex, const int selectedDisplayModeIndex, const bool supportsFormatDetection)
+	const int selectedDeviceIndex, const int selectedDisplayModeIndex, const bool supportsFormatDetection, const int portno)
 {
 	HRESULT								result = E_FAIL;
 	std::string							selectedDisplayModeName;
 	std::vector<IDeckLinkDisplayMode*>	displayModes;
 
-	fprintf(stderr,
-		"Usage: CaptureStills.exe -d <device id> -m <mode id> [OPTIONS]\n"
-		"\n"
-		"    -d <device id>:\n"
-	);
+	LOGGER->Log(LOG_INFO, "Usage: CaptureStills.exe -d <device id> -p <port> [OPTIONS]");
 
+
+	LOGGER->Log(LOG_INFO, "    -d <device id>:");
 	if (deviceNames.empty())
 	{
-		fprintf(stderr, "        No DeckLink devices found. Please check that Desktop Video is installed.\n");
+		LOGGER->Log(LOG_ERROR, "        No DeckLink devices found. Please check that Desktop Video is installed.");
 	}
 	else
 	{
 		// Loop through all available devices
 		for (size_t i = 0; i < deviceNames.size(); i++)
 		{
-			fprintf(stderr,
-				"       %c%2d:  %s\n",
+			LOGGER->Log(LOG_INFO,
+				"       %c%2d:  %s",
 				((int)i == selectedDeviceIndex) ? '*' : ' ',
 				(int)i,
 				deviceNames[i].c_str()
@@ -167,20 +165,22 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 		}
 	}
 
-	fprintf(stderr,
-		"    -m <mode id>: (%s)\n", ((selectedDeviceIndex >= 0) && (selectedDeviceIndex < (int)deviceNames.size())) ? deviceNames[selectedDeviceIndex].c_str() : ""
+	LOGGER->Log(LOG_INFO, "    -p <port>: (%d)", portno);
+
+	LOGGER->Log(LOG_INFO,
+		"    -m <mode id>: (%s)", ((selectedDeviceIndex >= 0) && (selectedDeviceIndex < (int)deviceNames.size())) ? deviceNames[selectedDeviceIndex].c_str() : ""
 	);
 
 	// Loop through all available display modes on the delected DeckLink device
 	if (selectedDeckLinkInput == NULL)
 	{
-		fprintf(stderr, "        No DeckLink device selected\n");
+		LOGGER->Log(LOG_ERROR, "        No DeckLink device selected");
 	}
 	else
 	{
 		if (supportsFormatDetection)
 		{
-			fprintf(stderr, "       %c-1:  auto detect format\n",
+			LOGGER->Log(LOG_INFO, "       %c-1:  auto detect format (default)",
 				(selectedDisplayModeIndex == -1) ? '*' : ' '
 			);
 		}
@@ -199,8 +199,8 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 
 				displayModes[i]->GetFrameRate(&frameRateDuration, &frameRateScale);
 
-				fprintf(stderr,
-					"       %c%2d:  %-20s \t %4li x %4li \t %.2f FPS\n",
+				LOGGER->Log(LOG_INFO,
+					"       %c%2d:  %-20s \t %4li x %4li \t %.2f FPS",
 					((int)i == selectedDisplayModeIndex) ? '*' : ' ',
 					(int)i,
 					DlToCString(displayModeName),
@@ -217,20 +217,20 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 		}
 	}
 
-	fprintf(stderr, "    -f <pixelformat>: ");
+	LOGGER->Log(LOG_INFO, "    -f <pixelformat>:");
 
 	if (selectedDeckLinkInput == NULL)
-		fprintf(stderr, "\n        No DeckLink device selected\n");
+		LOGGER->Log(LOG_INFO, "        No DeckLink device selected");
 
 	else if ((selectedDisplayModeIndex < -1) || (selectedDisplayModeIndex >= (int)displayModes.size()))
-		fprintf(stderr, "\n        Invalid display mode selected\n");
+		LOGGER->Log(LOG_ERROR, "        Invalid display mode selected");
 
 	else if (selectedDisplayModeIndex == -1)
-		fprintf(stderr, "\n        Auto-detect mode selected\n");
+		LOGGER->Log(LOG_INFO, "        Auto-detect mode selected");
 
 	else
 	{
-		fprintf(stderr, "(%s)\n", selectedDisplayModeName.c_str());
+		LOGGER->Log(LOG_INFO, "(%s)", selectedDisplayModeName.c_str());
 
 		for (unsigned int i = 0; i < kSupportedPixelFormats.size(); i++)
 		{
@@ -246,8 +246,8 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 
 			if ((result == S_OK) && (displayModeSupported))
 			{
-				fprintf(stderr,
-					"        %2d:  %s%s\n",
+				LOGGER->Log(LOG_INFO,
+					"        %2d:  %s%s",
 					i,
 					std::get<kPixelFormatString>(kSupportedPixelFormats[i]).c_str(),
 					(i == 0) ? " (default)" : ""
@@ -255,13 +255,4 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 			}
 		}
 	}
-
-	fprintf(stderr,
-		"    -n <frames>          Number of frames to capture (default is 1)\n"
-		"    -i <interval>        Capture frame interval rate (default is 1 - every frame)\n"
-		"    -p <port>            Server port to be exposed for requests (2000 - 65535)\n"
-		"Capture image stills to a specified directory. eg:\n"
-		"\n"
-		"    CaptureStills.exe -d 0 -m 23 -p 8080"
-	);
 }

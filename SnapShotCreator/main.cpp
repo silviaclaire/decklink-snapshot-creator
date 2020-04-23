@@ -144,7 +144,6 @@ std::string make_response(const std::string& result, const std::string& filepath
 int main(int argc, char* argv[])
 {
 	// Configuration Flags
-	bool						displayHelp = false;
 	int							deckLinkIndex = -1;
 	int							displayModeIndex = -1;
 	int							pixelFormatIndex = 0;
@@ -172,7 +171,8 @@ int main(int argc, char* argv[])
 
 	// Initialize server
 	httplib::Server 			svr;
-	if (!svr.is_valid()) {
+	if (!svr.is_valid())
+	{
 		LOGGER->Log(LOG_ERROR, "Server initialization failed");
 		return exitStatus;
 	}
@@ -206,16 +206,16 @@ int main(int argc, char* argv[])
 
 			else if (strcmp(argv[i], "-p") == 0)
 				portNo = atoi(argv[++i]);
-
-			else if ((strcmp(argv[i], "?") == 0) || (strcmp(argv[i], "-h") == 0))
-				displayHelp = true;
 		}
 
 		if (deckLinkIndex < 0)
 			throw InitializationError("You must select a device");
 
 		if ((portNo > 65535) || (portNo < 2000))
-			throw InitializationError("You must select a port number between 2000 - 65535");
+		{
+			fprintf(stderr, "You must select a port number between 2000 - 65535");
+			return exitStatus;
+		}
 
 		// Obtain the required DeckLink device
 		// TODO(low): move to CaptureStills.cpp
@@ -324,7 +324,7 @@ int main(int argc, char* argv[])
 			throw InitializationError("Failed to start capture");
 
 		// Print the selected configuration
-		LOGGER->Log(LOG_DEBUG, "Capturing with the following configuration:\n"
+		LOGGER->Log(LOG_INFO, "Capturing with the following configuration:\n"
 			" - Capture device: %s\n"
 			" - Video mode: %s\n"
 			" - Pixel format: %s",
@@ -353,9 +353,7 @@ int main(int argc, char* argv[])
 		// Update server status and print error
 		serverStatus = INITIALIZATION_ERROR;
 		initializationErrMsg = ex.what();
-		// TODO(low): write usage to log
-		// TODO(low): update usage in DisplayUsage
-		//CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection);
+		CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection, portNo);
 
 		// free resources
 		if (selectedDeckLinkInput != NULL)
@@ -448,10 +446,9 @@ int main(int argc, char* argv[])
 			captureDirectory = root["data"].get("outputDirectory", "").asCString();
 			filenamePrefix = root["data"].get("filenamePrefix", "").asCString();
 			imageFormat = root["data"].get("imageFormat", "").asCString();
-			validate_request_params(captureDirectory, filenamePrefix, imageFormat);
 
 			// Print the request params
-			LOGGER->Log(LOG_DEBUG, "Capturing snapshot:\n"
+			LOGGER->Log(LOG_INFO, "Capturing snapshot:\n"
 				" - Capture directory: %s\n"
 				" - Filename prefix: %s\n"
 				" - Image format: %s",
@@ -459,6 +456,9 @@ int main(int argc, char* argv[])
 				filenamePrefix.c_str(),
 				imageFormat.c_str()
 			);
+
+			// Validate params
+			validate_request_params(captureDirectory, filenamePrefix, imageFormat);
 
 			// Start capturing
 			result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
@@ -497,7 +497,6 @@ int main(int argc, char* argv[])
 		std::string 	errMsg = res.get_header_value("EXCEPTION_WHAT");
 		std::string 	errType = res.get_header_value("EXCEPTION_TYPE");
 
-		// TODO(low): use mappings or vectors for errType and errCode pairs.
 		if (errType == "class InitializationError")
 		{
 			if (serverStatus == INITIALIZING)
