@@ -146,7 +146,7 @@ int main(int argc, char* argv[])
 	// Configuration Flags
 	bool						displayHelp = false;
 	int							deckLinkIndex = -1;
-	int							displayModeIndex = -2;
+	int							displayModeIndex = -1;
 	int							pixelFormatIndex = 0;
 	int							portNo = -1;
 	bool						enableFormatDetection = false;
