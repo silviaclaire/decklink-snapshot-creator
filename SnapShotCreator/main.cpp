@@ -26,6 +26,17 @@ enum ServerStatus{
 	PROCESSING,
 };
 
+enum ErrorCode {
+	WARN_INITIALIZING = 900,
+	ERROR_INITIALIZATION,
+	WARN_PROCESSING = 910,
+	ERROR_INVALID_PARAMS,
+	ERROR_CAPTURE,
+	ERROR_INVALID_REQUEST = 990,
+	ERROR_UNKNOWN = 999,
+};
+
+
 std::string dump_headers(const httplib::Headers &headers) {
 	std::string s;
 	char buf[BUFSIZ];
@@ -424,7 +435,7 @@ int main(int argc, char* argv[])
 			{
 				throw InitializationError(initializationErrMsg);
 			}
-			else if (serverStatus == PROCESSING)
+			else if (serverStatus > IDLE)
 			{
 				throw CaptureError("server is processing another snapshot");
 			}
@@ -489,40 +500,49 @@ int main(int argc, char* argv[])
 		// TODO(low): use mappings or vectors for errType and errCode pairs.
 		if (errType == "class InitializationError")
 		{
-			errMsg = "Initialization: " + errMsg;
-			if (serverStatus==INITIALIZING)
+			if (serverStatus == INITIALIZING)
 			{
 				res.status = 200;
-				errCode = 900;
+				errCode = WARN_INITIALIZING;
 				LOGGER->Log(LOG_WARNING, errMsg);
 			}
 			else
 			{
 				res.status = 500;
-				errCode = 901;
+				errCode = ERROR_INITIALIZATION;
+				errMsg = "InitializationError: " + errMsg;
 				LOGGER->Log(LOG_ERROR, errMsg);
 			}
 		}
 		else if (errType == "class InvalidParams")
 		{
 			res.status = 400;
-			errCode = 910;
+			errCode = ERROR_INVALID_PARAMS;
 			errMsg = "InvalidParams: " + errMsg;
 			LOGGER->Log(LOG_WARNING, errMsg);
 			serverStatus = IDLE;
 		}
 		else if (errType == "class CaptureError")
 		{
-			res.status = 500;
-			errCode = 911;
-			errMsg = "CaptureError: " + errMsg;
-			LOGGER->Log(LOG_ERROR, errMsg);
-			serverStatus = IDLE;
+			if (serverStatus == PROCESSING)
+			{
+				res.status = 200;
+				errCode = WARN_PROCESSING;
+				LOGGER->Log(LOG_WARNING, errMsg);
+			}
+			else
+			{
+				res.status = 500;
+				errCode = ERROR_CAPTURE;
+				errMsg = "CaptureError: " + errMsg;
+				LOGGER->Log(LOG_ERROR, errMsg);
+				serverStatus = IDLE;
+			}
 		}
 		else if (errType == "class InvalidRequest" || errType.empty())
 		{
 			res.status = 400;
-			errCode = 990;
+			errCode = ERROR_INVALID_REQUEST;
 			if (errType.empty())
 				errMsg = "URL error";
 			errMsg = "InvalidRequest: " + errMsg;
@@ -532,7 +552,7 @@ int main(int argc, char* argv[])
 		else
 		{
 			res.status = 500;
-			errCode = 999;
+			errCode = ERROR_UNKNOWN;
 			errMsg = "Unknown error";
 			LOGGER->Log(LOG_ERROR, errMsg);
 			serverStatus = IDLE;
