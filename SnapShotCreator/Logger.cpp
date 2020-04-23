@@ -1,22 +1,31 @@
 #include "Logger.h"
 #include "utils.h"
 
-const std::string   CLogger::m_sFileName = "SnapShotCreator_"+CurrentDateTime("%F")+".log";
-CLogger*            CLogger::m_pThis = NULL;
-std::ofstream       CLogger::m_Logfile;
-const char*         fmt = "%Y-%m-%d %H:%M:%S";
+// TODO(high): Assign directory from command line
+// TODO(high): Assign minLogLevel from command line
+const CLogger::LogLevel     CLogger::m_MinLevel = CLogger::LogLevel::DEBUG;
+const std::string           CLogger::m_sDirectory = R"(C:\Users\yan-xintong\source\repos\SnapShotCreator\Logs)";
+
+const std::string           CLogger::m_sFileName = "SnapShotCreator_"+CurrentDateTime("%Y%m%d%H%M%S")+".log";
+const std::string           CLogger::m_sFilePath = CLogger::m_sDirectory + "\\" + CLogger::m_sFileName;
+CLogger*                    CLogger::m_pThis = NULL;
+std::ofstream               CLogger::m_Logfile;
+const char*                 fmt = "%Y-%m-%d %H:%M:%S";
 
 CLogger::CLogger() {}
 CLogger* CLogger::GetLogger(){
     if (m_pThis == NULL){
         m_pThis = new CLogger();
-        m_Logfile.open(m_sFileName.c_str(), std::ios_base::app | std::ios_base::out);
+        m_Logfile.open(m_sFilePath.c_str(), std::ios_base::app | std::ios_base::out);
     }
     return m_pThis;
 }
 
 void CLogger::Log(LogLevel level, const char * format, ...)
 {
+    if (level < CLogger::m_MinLevel)
+        return;
+
     char* sMessage = NULL;
     int nLength = 0;
     va_list args;
@@ -26,7 +35,7 @@ void CLogger::Log(LogLevel level, const char * format, ...)
     nLength = _vscprintf(format, args) + 1;
     sMessage = new char[nLength];
     vsprintf_s(sMessage, nLength, format, args);
-    //vsprintf(sMessage, format, args);
+
     std::string logLevelName =
         level == DEBUG   ?   " [DEBUG  ] " :
         level == INFO    ?   " [INFO   ] " :
@@ -41,6 +50,9 @@ void CLogger::Log(LogLevel level, const char * format, ...)
 
 void CLogger::Log(LogLevel level, const std::string& sMessage)
 {
+    if (level < CLogger::m_MinLevel)
+        return;
+
     std::string logLevelName =
         level == DEBUG   ?   " [DEBUG  ] " :
         level == INFO    ?   " [INFO   ] " :
@@ -48,11 +60,4 @@ void CLogger::Log(LogLevel level, const std::string& sMessage)
         /*level == ERROR*/   " [ERROR  ] ";
     m_Logfile <<  CurrentDateTime(fmt) << logLevelName;
     m_Logfile << sMessage << "\n";
-}
-
-CLogger& CLogger::operator<<(const std::string& sMessage)
-{
-    m_Logfile << "\n" << CurrentDateTime(fmt) << ":\t";
-    m_Logfile << sMessage << "\n";
-    return *this;
 }

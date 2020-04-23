@@ -30,11 +30,6 @@ public:
     */
     void Log(LogLevel level, const char * format, ...);
     /**
-    *   << overloaded function to Logs a message
-    *   @param sMessage message to be logged.
-    */
-    CLogger& operator<<(const std::string& sMessage);
-    /**
     *   Funtion to create the instance of logger class.
     *   @return singleton object of Clogger class..
     */
@@ -50,13 +45,22 @@ private:
     */
     CLogger(const CLogger&){};             // copy constructor is private
     /**
-    *   assignment operator for the Logger class.
-    */
-    CLogger& operator=(const CLogger&){ return *this; };  // assignment operator is private
+    *   Minimum Log Level.
+    **/
+    static const LogLevel m_MinLevel;
+    /**
+    *   Log folder path.
+    **/
+    static const std::string m_sDirectory;
     /**
     *   Log file name.
     **/
     static const std::string m_sFileName;
+    /**
+    /**
+    *   Log file path.
+    **/
+    static const std::string m_sFilePath;
     /**
     *   Singleton logger class object pointer.
     **/
