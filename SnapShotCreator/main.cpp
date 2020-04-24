@@ -114,19 +114,17 @@ void validate_request_params(const std::string captureDirectory, const std::stri
 	}
 }
 
-std::string make_response(const std::string& result, const std::string& filepathString="", const int& errCode=0, const std::string& errMsg="")
+std::string make_response(const std::string& result, const std::string& filepath="", const int& errCode=0, const std::string& errMsg="")
 {
 	Json::StreamWriterBuilder builder;
 	std::string jsonString;
 	Json::Value root;
-	Json::Value response;
 	Json::Value body;
-	Json::Value filepath;
 
 	if (result == R_OK) {
-		if (!filepathString.empty())
+		if (!filepath.empty())
 		{
-			body["filepath"] = filepathString;
+			body["filepath"] = filepath;
 		}
 	}
 	else
@@ -443,9 +441,9 @@ int main(int argc, char* argv[])
 			serverStatus = PROCESSING;
 
 			// Get parameters
-			captureDirectory = root["data"].get("outputDirectory", "").asCString();
-			filenamePrefix = root["data"].get("filenamePrefix", "").asCString();
-			imageFormat = root["data"].get("imageFormat", "").asCString();
+			captureDirectory = root["data"].get("output_directory", "").asCString();
+			filenamePrefix = root["data"].get("filename_prefix", "").asCString();
+			imageFormat = root["data"].get("image_format", "").asCString();
 
 			// Print the request params
 			LOGGER->Log(LOG_INFO, "Capturing snapshot:\n"
