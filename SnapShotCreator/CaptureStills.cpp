@@ -143,7 +143,8 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 	std::string							selectedDisplayModeName;
 	std::vector<IDeckLinkDisplayMode*>	displayModes;
 
-	LOGGER->Log(LOG_INFO, "Usage: CaptureStills.exe -d <device id> -p <port> [OPTIONS]");
+	// TODO(high): update usage after adding log options
+	LOGGER->Log(LOG_INFO, "Usage: SnapShotCreator.exe -d <device id> -p <port> [OPTIONS]");
 
 
 	LOGGER->Log(LOG_INFO, "    -d <device id>:");

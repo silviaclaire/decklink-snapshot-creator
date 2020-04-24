@@ -163,15 +163,46 @@ int main(int argc, char* argv[])
 	std::string					selectedDisplayModeName;
 	std::vector<std::string>	deckLinkDeviceNames;
 
-	// Server status and logger variables
+	// HTTP Server
+	httplib::Server 			svr;
 	ServerStatus				serverStatus = INITIALIZING;
 	std::string					initializationErrMsg = "initializing";
 
-	// Initialize server
-	httplib::Server 			svr;
+
+	// Get command line options
+	for (int i = 1; i < argc; i++)
+	{
+		if (strcmp(argv[i], "-d") == 0)
+			deckLinkIndex = atoi(argv[++i]);
+
+		else if (strcmp(argv[i], "-p") == 0)
+			portNo = atoi(argv[++i]);
+
+		else if (strcmp(argv[i], "-m") == 0)
+			displayModeIndex = atoi(argv[++i]);
+
+		else if (strcmp(argv[i], "-f") == 0)
+			pixelFormatIndex = atoi(argv[++i]);
+
+		//TODO(high): add options for logging
+	}
+
+	// TODO(high): initialize logger
+
+	// Basic check for commmand line options in order to start the server
 	if (!svr.is_valid())
 	{
 		LOGGER->Log(LOG_ERROR, "Server initialization failed");
+		return exitStatus;
+	}
+	if (deckLinkIndex < 0)
+	{
+		LOGGER->Log(LOG_ERROR, "You must select a device");
+		return exitStatus;
+	}
+	if ((portNo > 65535) || (portNo < 2000))
+	{
+		LOGGER->Log(LOG_ERROR, "You must select a port number between 2000 - 65535");
 		return exitStatus;
 	}
 
@@ -190,30 +221,6 @@ int main(int argc, char* argv[])
 		result = GetDeckLinkIterator(&deckLinkIterator);
 		if (result != S_OK)
 			throw InitializationError("Initialization of deckLinkIterator failed");
-
-		for (int i = 1; i < argc; i++)
-		{
-			if (strcmp(argv[i], "-d") == 0)
-				deckLinkIndex = atoi(argv[++i]);
-
-			else if (strcmp(argv[i], "-m") == 0)
-				displayModeIndex = atoi(argv[++i]);
-
-			else if (strcmp(argv[i], "-f") == 0)
-				pixelFormatIndex = atoi(argv[++i]);
-
-			else if (strcmp(argv[i], "-p") == 0)
-				portNo = atoi(argv[++i]);
-		}
-
-		if (deckLinkIndex < 0)
-			throw InitializationError("You must select a device");
-
-		if ((portNo > 65535) || (portNo < 2000))
-		{
-			fprintf(stderr, "You must select a port number between 2000 - 65535");
-			return exitStatus;
-		}
 
 		// Obtain the required DeckLink device
 		// TODO(low): move to CaptureStills.cpp
