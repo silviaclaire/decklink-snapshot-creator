@@ -4,7 +4,8 @@
 // TODO(high): Assign directory from command line
 // TODO(high): Assign minLogLevel from command line
 const CLogger::LogLevel     CLogger::m_MinLevel = CLogger::LogLevel::DEBUG;
-const std::string           CLogger::m_sDirectory = R"(C:\Users\yan-xintong\source\repos\SnapShotCreator\Logs)";
+const std::string           CLogger::m_sDirectory = R"(..\Logs)";
+// TODO(high): Create directory if not exists
 
 const std::string           CLogger::m_sFileName = "SnapShotCreator_"+CurrentDateTime("%Y%m%d%H%M%S")+".log";
 const std::string           CLogger::m_sFilePath = CLogger::m_sDirectory + "\\" + CLogger::m_sFileName;

@@ -92,6 +92,7 @@ void validate_request_params(const std::string captureDirectory, const std::stri
 	{
 		throw InvalidParams("You must set a capture directory");
 	}
+	// TODO(high): Create directory if not exists
 	else if (!IsPathDirectory(captureDirectory))
 	{
 		throw InvalidParams("Invalid directory specified");
