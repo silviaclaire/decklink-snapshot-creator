@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
 		else if (strcmp(argv[i], "-f") == 0)
 			pixelFormatIndex = atoi(argv[++i]);
 
-		//TODO(high): add options for logging
+		// TODO(high): add options for logging
 	}
 
 	// TODO(high): initialize logger
@@ -208,6 +208,7 @@ int main(int argc, char* argv[])
 	}
 
 	// Initialize input device
+	// TODO(high): wrap in a function and make another thread for it.
 	try
 	{
 		// Initialize COM on this thread
@@ -359,6 +360,7 @@ int main(int argc, char* argv[])
 		// Update server status and print error
 		serverStatus = INITIALIZATION_ERROR;
 		initializationErrMsg = ex.what();
+		LOGGER->Log(LOG_ERROR, initializationErrMsg);
 		CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection, portNo);
 
 		// free resources
@@ -558,7 +560,7 @@ int main(int argc, char* argv[])
 		{
 			res.status = 500;
 			errCode = ERROR_UNKNOWN;
-			errMsg = "Unknown error";
+			errMsg = "UnknownError: " + errMsg;
 			LOGGER->Log(LOG_ERROR, errMsg);
 			serverStatus = IDLE;
 		}

@@ -221,7 +221,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 	LOGGER->Log(LOG_INFO, "    -f <pixelformat>:");
 
 	if (selectedDeckLinkInput == NULL)
-		LOGGER->Log(LOG_INFO, "        No DeckLink device selected");
+		LOGGER->Log(LOG_ERROR, "        No DeckLink device selected");
 
 	else if ((selectedDisplayModeIndex < -1) || (selectedDisplayModeIndex >= (int)displayModes.size()))
 		LOGGER->Log(LOG_ERROR, "        Invalid display mode selected");
