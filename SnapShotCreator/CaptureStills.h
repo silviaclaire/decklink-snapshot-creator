@@ -29,7 +29,7 @@ const std::list<std::string> supportedImageFormats = {
 	"bmp",
 	"png",
 	"tiff",
-	"jpeg",
+	// "jpeg",
 };
 
 namespace CaptureStills
