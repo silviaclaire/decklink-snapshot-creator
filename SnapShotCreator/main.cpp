@@ -394,7 +394,7 @@ int main(int argc, char* argv[])
 		serverStatus = INITIALIZATION_ERROR;
 		initializationErrMsg = ex.what();
 		spdlog::error(initializationErrMsg);
-		CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection, portNo);
+		CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection);
 
 		// free resources
 		if (selectedDeckLinkInput != NULL)

@@ -137,15 +137,14 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 }
 
 void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, const std::vector<std::string>& deviceNames,
-	const int selectedDeviceIndex, const int selectedDisplayModeIndex, const bool supportsFormatDetection, const int portno)
+	const int selectedDeviceIndex, const int selectedDisplayModeIndex, const bool supportsFormatDetection)
 {
 	HRESULT								result = E_FAIL;
 	std::string							selectedDisplayModeName;
 	std::vector<IDeckLinkDisplayMode*>	displayModes;
 
-	// TODO(high): update usage after adding log options
 	// TODO(high): fix format strings with {} instead of %x
-	spdlog::info("Usage: SnapShotCreator.exe -d <device id> -p <port> [OPTIONS]");
+	spdlog::info("Usage: SnapShotCreator.exe -d <device id> -p <port> --log-dir <log directory> [OPTIONS]");
 
 
 	spdlog::info("    -d <device id>:");
@@ -166,8 +165,6 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 			);
 		}
 	}
-
-	spdlog::info("    -p <port>: (%d)", portno);
 
 	spdlog::info(
 		"    -m <mode id>: (%s)", ((selectedDeviceIndex >= 0) && (selectedDeviceIndex < (int)deviceNames.size())) ? deviceNames[selectedDeviceIndex].c_str() : ""
