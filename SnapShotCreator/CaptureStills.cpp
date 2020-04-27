@@ -47,86 +47,92 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 	IDeckLinkVideoConversion*	deckLinkFrameConverter = NULL;
 	IDeckLinkVideoFrame*		videoFrame = NULL;
 
-	// Unknown error if not overridden
-	err = "Unknown error";
-
-	// Create frame conversion instance
-	result = GetDeckLinkVideoConversion(&deckLinkFrameConverter);
-	if (result != S_OK)
+	try
 	{
-		err = "Failed to get DeckLink frame converter";
-		spdlog::error(err.c_str());
-		return;
-	}
-
-	while (captureRunning)
-	{
-		bool captureCancelled;
-		if (!deckLinkInput->WaitForVideoFrameArrived(&receivedVideoFrame, captureCancelled))
+		// Create frame conversion instance
+		result = GetDeckLinkVideoConversion(&deckLinkFrameConverter);
+		if (result != S_OK)
 		{
-			err = "Timeout waiting for valid frame";
+			err = "Failed to get DeckLink frame converter";
 			spdlog::error(err.c_str());
-			captureRunning = false;
+			return;
 		}
 
-		else if (captureCancelled)
-			captureRunning = false;
-
-		else
+		while (captureRunning)
 		{
-			filepath = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat);
-			spdlog::info("Capturing frame to {}", filepath.c_str());
-
-			if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
+			bool captureCancelled;
+			if (!deckLinkInput->WaitForVideoFrameArrived(&receivedVideoFrame, captureCancelled))
 			{
-				// Frame is already 8-bit BGRA - no conversion required
-				spdlog::debug("Frame is already 8-bit BGRA - no conversion required");
-				videoFrame = receivedVideoFrame;
-				videoFrame->AddRef();
-			}
-			else
-			{
-				if (imageFormat == "jpeg")
-				{
-					// FIXME: Bgr24VideoFrame outputs incorrect images.
-					spdlog::debug("Converting to 24-bit BGR video frame");
-					videoFrame = new Bgr24VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
-				}
-				else
-				{
-					spdlog::debug("Converting to 32-bit BGRA video frame");
-					videoFrame = new Bgra32VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
-				}
-
-				result = deckLinkFrameConverter->ConvertFrame(receivedVideoFrame, videoFrame);
-				if (FAILED(result))
-				{
-					err = "Frame conversion was unsuccessful";
-					spdlog::error(err.c_str());
-					captureRunning = false;
-				}
-			}
-
-			result = ImageWriter::WriteVideoFrameToImage(videoFrame, filepath, imageFormat);
-			if (FAILED(result))
-			{
-				err = "Image encoding to file was unsuccessful";
+				err = "Timeout waiting for valid frame";
 				spdlog::error(err.c_str());
 				captureRunning = false;
 			}
 
-			videoFrame->Release();
+			else if (captureCancelled)
+				captureRunning = false;
 
-			err = "";
-			spdlog::info("Capture completed");
-			captureRunning = false;
-		}
+			else
+			{
+				filepath = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat);
+				spdlog::info("Capturing frame to {}", filepath.c_str());
 
-		if (receivedVideoFrame != NULL)
-		{
-			receivedVideoFrame->Release();
-			receivedVideoFrame = NULL;
+				if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
+				{
+					// Frame is already 8-bit BGRA - no conversion required
+					spdlog::debug("Frame is already 8-bit BGRA - no conversion required");
+					videoFrame = receivedVideoFrame;
+					videoFrame->AddRef();
+				}
+				else
+				{
+					if (imageFormat == "jpeg")
+					{
+						// FIXME: Bgr24VideoFrame outputs incorrect images.
+						spdlog::debug("Converting to 24-bit BGR video frame");
+						videoFrame = new Bgr24VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
+					}
+					else
+					{
+						spdlog::debug("Converting to 32-bit BGRA video frame");
+						videoFrame = new Bgra32VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
+					}
+
+					result = deckLinkFrameConverter->ConvertFrame(receivedVideoFrame, videoFrame);
+					if (FAILED(result))
+					{
+						err = "Frame conversion was unsuccessful";
+						spdlog::error(err.c_str());
+						captureRunning = false;
+					}
+				}
+
+				result = ImageWriter::WriteVideoFrameToImage(videoFrame, filepath, imageFormat);
+				if (FAILED(result))
+				{
+					err = "Image encoding to file was unsuccessful";
+					spdlog::error(err.c_str());
+					captureRunning = false;
+				}
+
+				videoFrame->Release();
+
+				err = "";
+				spdlog::info("Capture completed");
+				captureRunning = false;
+			}
 		}
+	}
+	catch(const std::exception& ex)
+	{
+		spdlog::dump_backtrace();
+		err = ex.what();
+		spdlog::error(err.c_str());
+	}
+
+	if (receivedVideoFrame != NULL)
+	{
+		receivedVideoFrame->Release();
+		receivedVideoFrame = NULL;
 	}
 
 	if (deckLinkFrameConverter != NULL)

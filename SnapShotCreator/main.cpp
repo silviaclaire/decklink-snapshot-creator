@@ -205,6 +205,7 @@ int main(int argc, char* argv[])
 	}
 	spdlog::set_level(static_cast<spdlog::level::level_enum>(logLevel));
 	spdlog::set_pattern("%Y-%m-%d %H:%M:%S [%-8l] [thread %-5t] %v");
+	spdlog::enable_backtrace(32); // Store the latest 32 messages in a buffer for backtrace.
 	if (logDirectory.empty())
 	{
 		fprintf(stderr, "You must set a log directory\n");
