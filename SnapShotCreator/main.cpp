@@ -392,7 +392,7 @@ int main(int argc, char* argv[])
 
 		// Update server status
 		serverStatus = IDLE;
-		spdlog::debug("System all green");
+		spdlog::info("Initialization completed");
 	}
 	catch (std::exception& ex)
 	{
@@ -443,6 +443,7 @@ int main(int argc, char* argv[])
 
 		if (command == "IS_INITIALIZED")
 		{
+			spdlog::info("received command: {}", command);
 			// Confirm if server is ready
 			if (serverStatus > INITIALIZING)
 			{
@@ -456,6 +457,7 @@ int main(int argc, char* argv[])
 
 		else if (command == "SHUTDOWN")
 		{
+			spdlog::info("received command: {}", command);
 			// Cancel capture and shutdown server
 			if (selectedDeckLinkInput != NULL)
 			{
@@ -476,6 +478,7 @@ int main(int argc, char* argv[])
 
 		else if (command == "CREATE_SNAPSHOT")
 		{
+			spdlog::info("received command: {}", command);
 			if (serverStatus < IDLE)
 			{
 				throw InitializationError(initializationErrMsg);
@@ -486,6 +489,7 @@ int main(int argc, char* argv[])
 			}
 
 			// Create Snapshot
+			// FIXME: should use lock when updating server status
 			// Update server status
 			serverStatus = PROCESSING;
 
@@ -615,5 +619,7 @@ int main(int argc, char* argv[])
 	svr.listen("localhost", portNo);
 
 	// All Okay.
+	spdlog::info("Server has been shutdown. Program terminating...");
 	exitStatus = 0;
+	return exitStatus;
 }
