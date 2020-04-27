@@ -59,6 +59,9 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 		return;
 	}
 
+	// Sleep for a while
+	std::this_thread::sleep_for(std::chrono::seconds(10));
+
 	while (captureRunning)
 	{
 		bool captureCancelled;

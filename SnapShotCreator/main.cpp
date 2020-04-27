@@ -1,3 +1,4 @@
+#define CPPHTTPLIB_THREAD_POOL_COUNT 20
 #include <httplib.h>
 #include <Windows.h>
 #include <stdio.h>
@@ -379,9 +380,29 @@ int main(int argc, char* argv[])
 		CoUninitialize();
 	}
 
+	// shutdown server
+	svr.Get("/stop", [&](const httplib::Request &req, httplib::Response &res) {
+		// Cancel capture and shutdown server
+		if (selectedDeckLinkInput != NULL)
+		{
+			selectedDeckLinkInput->CancelCapture();
+			selectedDeckLinkInput->Release();
+			selectedDeckLinkInput = NULL;
+		}
+		if (deckLinkIterator != NULL)
+		{
+			deckLinkIterator->Release();
+			deckLinkIterator = NULL;
+		}
+		ImageWriter::UnInitialize();
+		CoUninitialize();
+		res.set_content(make_response(R_OK), "application/json");
+		svr.stop();
+	});
+
 	// create a snapshot
-	svr.Post("/", [&](const httplib::Request &req, httplib::Response &res) {
-		std::string 							rawJson = req.body;
+	svr.Get("/", [&](const httplib::Request &req, httplib::Response &res) {
+		// std::string 							rawJson = req.body;
 		Json::Value 							root;
 		Json::CharReaderBuilder 				jsonBuilder;
 		const std::unique_ptr<Json::CharReader>	jsonReader(jsonBuilder.newCharReader());
@@ -393,110 +414,60 @@ int main(int argc, char* argv[])
 		std::string 							filepath;
 		std::string 							err;
 
-		// Parse JSON body
-		if (!jsonReader->parse(rawJson.c_str(), rawJson.c_str() + rawJson.length(), &root, &err))
+		if (serverStatus < IDLE)
 		{
-			throw InvalidRequest("failed to parse JSON body");
+			throw InitializationError(initializationErrMsg);
+		}
+		else if (serverStatus > IDLE)
+		{
+			throw CaptureError("server is processing another snapshot");
 		}
 
-		// Get command
-		command = root["command"].asString();
+		// Create Snapshot
+		// Update server status
+		serverStatus = PROCESSING;
 
-		if (command == "IS_INITIALIZED")
+		// Get parameters
+		captureDirectory = R"(C:\Users\yan-xintong\Downloads\snapshots)";
+		filenamePrefix = "test_";
+		imageFormat = "png";
+
+		// Print the request params
+		LOGGER->Log(LOG_INFO, "Capturing snapshot:\n"
+			" - Capture directory: %s\n"
+			" - Filename prefix: %s\n"
+			" - Image format: %s",
+			captureDirectory.c_str(),
+			filenamePrefix.c_str(),
+			imageFormat.c_str()
+		);
+
+		// Validate params
+		validate_request_params(captureDirectory, filenamePrefix, imageFormat);
+
+		// Start capturing
+		result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
+		if (result != S_OK)
+			throw CaptureError("failed to start capture");
+
+		// Start thread for capture processing
+		captureStillsThread = std::thread([&] {
+			CaptureStills::CreateSnapshot(selectedDeckLinkInput, captureDirectory, filenamePrefix, imageFormat, filepath, err);
+		});
+		// Wait on return of main capture stills thread
+		captureStillsThread.join();
+		// Stop capturing
+		selectedDeckLinkInput->StopCapture();
+
+		// Update server status
+		serverStatus = IDLE;
+
+		// Check result
+		if (!err.empty())
 		{
-			// Confirm if server is ready
-			if (serverStatus > INITIALIZING)
-			{
-				res.set_content(make_response(R_OK), "application/json");
-			}
-			else
-			{
-				throw InitializationError(initializationErrMsg);
-			}
+			throw CaptureError(err);
 		}
-
-		else if (command == "SHUTDOWN")
-		{
-			// Cancel capture and shutdown server
-			if (selectedDeckLinkInput != NULL)
-			{
-				selectedDeckLinkInput->CancelCapture();
-				selectedDeckLinkInput->Release();
-				selectedDeckLinkInput = NULL;
-			}
-			if (deckLinkIterator != NULL)
-			{
-				deckLinkIterator->Release();
-				deckLinkIterator = NULL;
-			}
-			ImageWriter::UnInitialize();
-			CoUninitialize();
-			res.set_content(make_response(R_OK), "application/json");
-			svr.stop();
-		}
-
-		else if (command == "CREATE_SNAPSHOT")
-		{
-			if (serverStatus < IDLE)
-			{
-				throw InitializationError(initializationErrMsg);
-			}
-			else if (serverStatus > IDLE)
-			{
-				throw CaptureError("server is processing another snapshot");
-			}
-
-			// Create Snapshot
-			// Update server status
-			serverStatus = PROCESSING;
-
-			// Get parameters
-			captureDirectory = root["data"].get("output_directory", "").asCString();
-			filenamePrefix = root["data"].get("filename_prefix", "").asCString();
-			imageFormat = root["data"].get("image_format", "").asCString();
-
-			// Print the request params
-			LOGGER->Log(LOG_INFO, "Capturing snapshot:\n"
-				" - Capture directory: %s\n"
-				" - Filename prefix: %s\n"
-				" - Image format: %s",
-				captureDirectory.c_str(),
-				filenamePrefix.c_str(),
-				imageFormat.c_str()
-			);
-
-			// Validate params
-			validate_request_params(captureDirectory, filenamePrefix, imageFormat);
-
-			// Start capturing
-			result = selectedDeckLinkInput->StartCapture(selectedDisplayMode, std::get<kPixelFormatValue>(kSupportedPixelFormats[pixelFormatIndex]), enableFormatDetection);
-			if (result != S_OK)
-				throw CaptureError("failed to start capture");
-
-			// Start thread for capture processing
-			captureStillsThread = std::thread([&] {
-				CaptureStills::CreateSnapshot(selectedDeckLinkInput, captureDirectory, filenamePrefix, imageFormat, filepath, err);
-			});
-			// Wait on return of main capture stills thread
-			captureStillsThread.join();
-			// Stop capturing
-			selectedDeckLinkInput->StopCapture();
-
-			// Update server status
-			serverStatus = IDLE;
-
-			// Check result
-			if (!err.empty())
-			{
-				throw CaptureError(err);
-			}
-			res.set_content(make_response(R_OK, filepath), "application/json");
-		}
-		else
-		{
-			throw InvalidRequest("'command' key not found or not supported '"+command+"'");
-		}
-
+		res.set_content(make_response(R_OK, filepath), "application/json");
 	});
 
 	// if server error occures, return with response
