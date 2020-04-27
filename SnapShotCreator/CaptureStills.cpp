@@ -75,7 +75,7 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 		else
 		{
 			filepath = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat);
-			spdlog::info("Capturing frame to %s", filepath.c_str());
+			spdlog::info("Capturing frame to {}", filepath.c_str());
 
 			if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
 			{
@@ -143,9 +143,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 	std::string							selectedDisplayModeName;
 	std::vector<IDeckLinkDisplayMode*>	displayModes;
 
-	// TODO(high): fix format strings with {} instead of %x
 	spdlog::info("Usage: SnapShotCreator.exe -d <device id> -p <port> --log-dir <log directory> [OPTIONS]");
-
 
 	spdlog::info("    -d <device id>:");
 	if (deviceNames.empty())
@@ -158,7 +156,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 		for (size_t i = 0; i < deviceNames.size(); i++)
 		{
 			spdlog::info(
-				"       %c%2d:  %s",
+				"       {}{:2d}:  {}",
 				((int)i == selectedDeviceIndex) ? '*' : ' ',
 				(int)i,
 				deviceNames[i].c_str()
@@ -167,7 +165,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 	}
 
 	spdlog::info(
-		"    -m <mode id>: (%s)", ((selectedDeviceIndex >= 0) && (selectedDeviceIndex < (int)deviceNames.size())) ? deviceNames[selectedDeviceIndex].c_str() : ""
+		"    -m <mode id>: ({})", ((selectedDeviceIndex >= 0) && (selectedDeviceIndex < (int)deviceNames.size())) ? deviceNames[selectedDeviceIndex].c_str() : ""
 	);
 
 	// Loop through all available display modes on the delected DeckLink device
@@ -179,7 +177,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 	{
 		if (supportsFormatDetection)
 		{
-			spdlog::info("       %c-1:  auto detect format (default)",
+			spdlog::info("       {}-1:  auto detect format (default)",
 				(selectedDisplayModeIndex == -1) ? '*' : ' '
 			);
 		}
@@ -199,7 +197,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 				displayModes[i]->GetFrameRate(&frameRateDuration, &frameRateScale);
 
 				spdlog::info(
-					"       %c%2d:  %-20s \t %4li x %4li \t %.2f FPS",
+					"       {}{:2d}:  {:<20} {} x {} {:.2f} FPS",
 					((int)i == selectedDisplayModeIndex) ? '*' : ' ',
 					(int)i,
 					DlToCString(displayModeName),
@@ -229,7 +227,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 
 	else
 	{
-		spdlog::info("(%s)", selectedDisplayModeName.c_str());
+		spdlog::info("({})", selectedDisplayModeName.c_str());
 
 		for (unsigned int i = 0; i < kSupportedPixelFormats.size(); i++)
 		{
@@ -246,7 +244,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 			if ((result == S_OK) && (displayModeSupported))
 			{
 				spdlog::info(
-					"        %2d:  %s%s",
+					"        {:2d}:  {}{}",
 					i,
 					std::get<kPixelFormatString>(kSupportedPixelFormats[i]).c_str(),
 					(i == 0) ? " (default)" : ""

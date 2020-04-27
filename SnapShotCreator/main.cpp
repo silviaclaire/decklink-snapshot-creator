@@ -365,9 +365,9 @@ int main(int argc, char* argv[])
 
 		// Print the selected configuration
 		spdlog::info("Capturing with the following configuration:\n"
-			" - Capture device: %s\n"
-			" - Video mode: %s\n"
-			" - Pixel format: %s",
+			" - Capture device: {}\n"
+			" - Video mode: {}\n"
+			" - Pixel format: {}",
 			selectedDeckLinkInput->GetDeviceName().c_str(),
 			selectedDisplayModeName.c_str(),
 			std::get<kPixelFormatString>(kSupportedPixelFormats[pixelFormatIndex]).c_str()
@@ -490,9 +490,9 @@ int main(int argc, char* argv[])
 
 			// Print the request params
 			spdlog::info("Capturing snapshot:\n"
-				" - Capture directory: %s\n"
-				" - Filename prefix: %s\n"
-				" - Image format: %s",
+				" - Capture directory: {}\n"
+				" - Filename prefix: {}\n"
+				" - Image format: {}",
 				captureDirectory.c_str(),
 				filenamePrefix.c_str(),
 				imageFormat.c_str()
@@ -605,7 +605,7 @@ int main(int argc, char* argv[])
 		spdlog::debug(dump_req_and_res(req, res).c_str());
 	});
 
-	spdlog::info("Server started at port %d", portNo);
+	spdlog::info("Server started at http://localhost:{}", portNo);
 	svr.listen("localhost", portNo);
 
 	// All Okay.

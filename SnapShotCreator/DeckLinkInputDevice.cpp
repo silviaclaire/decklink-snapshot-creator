@@ -234,7 +234,7 @@ HRESULT DeckLinkInputDevice::VideoInputFormatChanged(/* in */ BMDVideoInputForma
 
 	if (result == S_OK)
 	{
-		spdlog::debug("Video format changed to  %s %s", DlToCString(displayModeNameStr), (detectedSignalFlags & bmdDetectedVideoInputRGB444) ? "RGB" : "YUV");
+		spdlog::debug("Video format changed to  {} {}", DlToCString(displayModeNameStr), (detectedSignalFlags & bmdDetectedVideoInputRGB444) ? "RGB" : "YUV");
 		DeleteString(displayModeNameStr);
 	}
 	else
