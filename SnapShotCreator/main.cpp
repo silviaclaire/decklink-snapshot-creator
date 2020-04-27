@@ -9,7 +9,8 @@
 #include <thread>
 #include <vector>
 
-#include "Logger.h"
+#include "include/spdlog/spdlog.h"
+#include "include/spdlog/sinks/daily_file_sink.h"
 #include "exceptions.h"
 #include "platform.h"
 #include "ImageWriter.h"
@@ -92,7 +93,6 @@ void validate_request_params(const std::string captureDirectory, const std::stri
 	{
 		throw InvalidParams("You must set a capture directory");
 	}
-	// TODO(high): Create directory if not exists
 	else if (!IsPathDirectory(captureDirectory))
 	{
 		throw InvalidParams("Invalid directory specified");
@@ -142,6 +142,7 @@ std::string make_response(const std::string& result, const std::string& filepath
 
 int main(int argc, char* argv[])
 {
+	std::string					usrCommand = "";
 	// Configuration Flags
 	int							deckLinkIndex = -1;
 	int							displayModeIndex = -1;
@@ -169,6 +170,9 @@ int main(int argc, char* argv[])
 	ServerStatus				serverStatus = INITIALIZING;
 	std::string					initializationErrMsg = "initializing";
 
+	// Logging
+	int							logLevel = spdlog::level::debug;
+	std::string					logDirectory = "";
 
 	// Get command line options
 	for (int i = 1; i < argc; i++)
@@ -185,30 +189,59 @@ int main(int argc, char* argv[])
 		else if (strcmp(argv[i], "-f") == 0)
 			pixelFormatIndex = atoi(argv[++i]);
 
-		// TODO(high): add options for logging
+		else if (strcmp(argv[i], "--log-level") == 0)
+			logLevel = atoi(argv[++i]);
+
+		else if (strcmp(argv[i], "--log-dir") == 0)
+			logDirectory = argv[++i];
 	}
 
-	// TODO(high): initialize logger
+	// Initialize logger
+	if ((logLevel < 0) || (logLevel >= spdlog::level::level_enum::n_levels))
+	{
+		fprintf(stderr, "You must select a log level between 0 - %d", spdlog::level::level_enum::n_levels - 1);
+		return exitStatus;
+	}
+	spdlog::set_level(static_cast<spdlog::level::level_enum>(logLevel));
+	spdlog::set_pattern("%Y-%m-%d %H:%M:%S [%-8l] [thread %-5t] %v");
+	try
+	{
+		auto logger = spdlog::daily_logger_mt("SnapShotCreator", logDirectory+"\\"+"SnapShotCreator.log");
+		spdlog::set_default_logger(logger);
+	}
+	catch (...)
+	{
+		fprintf(stderr, "Invalid log directory specified");
+		return exitStatus;
+	}
+
+	// Print startup command
+	for(int i = 0; i < argc; ++i)
+	{
+		usrCommand += argv[i];
+		usrCommand += " ";
+	}
+	spdlog::info("Startup command:\n{}", usrCommand);
 
 	// Basic check for commmand line options in order to start the server
 	if (!svr.is_valid())
 	{
-		LOGGER->Log(LOG_ERROR, "Server initialization failed");
+		spdlog::error("Server initialization failed");
 		return exitStatus;
 	}
 	if (deckLinkIndex < 0)
 	{
-		LOGGER->Log(LOG_ERROR, "You must select a device");
+		spdlog::error("You must select a device");
 		return exitStatus;
 	}
 	if ((portNo > 65535) || (portNo < 2000))
 	{
-		LOGGER->Log(LOG_ERROR, "You must select a port number between 2000 - 65535");
+		spdlog::error("You must select a port number between 2000 - 65535");
 		return exitStatus;
 	}
 
 	// Initialize input device
-	// TODO(high): wrap in a function and make another thread for it.
+	// TODO(low): wrap in a function and make another thread for it.
 	try
 	{
 		// Initialize COM on this thread
@@ -331,7 +364,7 @@ int main(int argc, char* argv[])
 			throw InitializationError("Failed to start capture");
 
 		// Print the selected configuration
-		LOGGER->Log(LOG_INFO, "Capturing with the following configuration:\n"
+		spdlog::info("Capturing with the following configuration:\n"
 			" - Capture device: %s\n"
 			" - Video mode: %s\n"
 			" - Pixel format: %s",
@@ -353,14 +386,14 @@ int main(int argc, char* argv[])
 
 		// Update server status
 		serverStatus = IDLE;
-		LOGGER->Log(LOG_DEBUG, "System all green");
+		spdlog::debug("System all green");
 	}
 	catch (std::exception& ex)
 	{
 		// Update server status and print error
 		serverStatus = INITIALIZATION_ERROR;
 		initializationErrMsg = ex.what();
-		LOGGER->Log(LOG_ERROR, initializationErrMsg);
+		spdlog::error(initializationErrMsg);
 		CaptureStills::DisplayUsage(selectedDeckLinkInput, deckLinkDeviceNames, deckLinkIndex, displayModeIndex, supportsFormatDetection, portNo);
 
 		// free resources
@@ -456,7 +489,7 @@ int main(int argc, char* argv[])
 			imageFormat = root["data"].get("image_format", "").asCString();
 
 			// Print the request params
-			LOGGER->Log(LOG_INFO, "Capturing snapshot:\n"
+			spdlog::info("Capturing snapshot:\n"
 				" - Capture directory: %s\n"
 				" - Filename prefix: %s\n"
 				" - Image format: %s",
@@ -511,14 +544,14 @@ int main(int argc, char* argv[])
 			{
 				res.status = 200;
 				errCode = WARN_INITIALIZING;
-				LOGGER->Log(LOG_WARNING, errMsg);
+				spdlog::warn(errMsg);
 			}
 			else
 			{
 				res.status = 500;
 				errCode = ERROR_INITIALIZATION;
 				errMsg = "InitializationError: " + errMsg;
-				LOGGER->Log(LOG_ERROR, errMsg);
+				spdlog::error(errMsg);
 			}
 		}
 		else if (errType == "class InvalidParams")
@@ -526,7 +559,7 @@ int main(int argc, char* argv[])
 			res.status = 400;
 			errCode = ERROR_INVALID_PARAMS;
 			errMsg = "InvalidParams: " + errMsg;
-			LOGGER->Log(LOG_WARNING, errMsg);
+			spdlog::warn(errMsg);
 			serverStatus = IDLE;
 		}
 		else if (errType == "class CaptureError")
@@ -535,14 +568,14 @@ int main(int argc, char* argv[])
 			{
 				res.status = 200;
 				errCode = WARN_PROCESSING;
-				LOGGER->Log(LOG_WARNING, errMsg);
+				spdlog::warn(errMsg);
 			}
 			else
 			{
 				res.status = 500;
 				errCode = ERROR_CAPTURE;
 				errMsg = "CaptureError: " + errMsg;
-				LOGGER->Log(LOG_ERROR, errMsg);
+				spdlog::error(errMsg);
 				serverStatus = IDLE;
 			}
 		}
@@ -553,7 +586,7 @@ int main(int argc, char* argv[])
 			if (errType.empty())
 				errMsg = "URL error";
 			errMsg = "InvalidRequest: " + errMsg;
-			LOGGER->Log(LOG_WARNING, errMsg);
+			spdlog::warn(errMsg);
 			serverStatus = IDLE;
 		}
 		else
@@ -561,7 +594,7 @@ int main(int argc, char* argv[])
 			res.status = 500;
 			errCode = ERROR_UNKNOWN;
 			errMsg = "UnknownError: " + errMsg;
-			LOGGER->Log(LOG_ERROR, errMsg);
+			spdlog::error(errMsg);
 			serverStatus = IDLE;
 		}
 		res.set_content(make_response(R_NG, "", errCode, errMsg), "application/json");
@@ -569,10 +602,10 @@ int main(int argc, char* argv[])
 
 	// set logger for request/response
 	svr.set_logger([&](const httplib::Request &req, const httplib::Response &res) {
-		LOGGER->Log(LOG_DEBUG, dump_req_and_res(req, res).c_str());
+		spdlog::debug(dump_req_and_res(req, res).c_str());
 	});
 
-	LOGGER->Log(LOG_INFO, "Server started at port %d", portNo);
+	spdlog::info("Server started at port %d", portNo);
 	svr.listen("localhost", portNo);
 
 	// All Okay.

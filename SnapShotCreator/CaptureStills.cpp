@@ -27,7 +27,7 @@
 // CaptureStills.cpp
 //
 
-#include "Logger.h"
+#include "include/spdlog/spdlog.h"
 #include "platform.h"
 #include "Bgr24VideoFrame.h"
 #include "Bgra32VideoFrame.h"
@@ -55,7 +55,7 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 	if (result != S_OK)
 	{
 		err = "Failed to get DeckLink frame converter";
-		LOGGER->Log(LOG_ERROR, err.c_str());
+		spdlog::error(err.c_str());
 		return;
 	}
 
@@ -65,7 +65,7 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 		if (!deckLinkInput->WaitForVideoFrameArrived(&receivedVideoFrame, captureCancelled))
 		{
 			err = "Timeout waiting for valid frame";
-			LOGGER->Log(LOG_ERROR, err.c_str());
+			spdlog::error(err.c_str());
 			captureRunning = false;
 		}
 
@@ -75,12 +75,12 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 		else
 		{
 			filepath = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat);
-			LOGGER->Log(LOG_INFO, "Capturing frame to %s", filepath.c_str());
+			spdlog::info("Capturing frame to %s", filepath.c_str());
 
 			if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
 			{
 				// Frame is already 8-bit BGRA - no conversion required
-				LOGGER->Log(LOG_DEBUG, "Frame is already 8-bit BGRA - no conversion required");
+				spdlog::debug("Frame is already 8-bit BGRA - no conversion required");
 				videoFrame = receivedVideoFrame;
 				videoFrame->AddRef();
 			}
@@ -89,12 +89,12 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 				if (imageFormat == "jpeg")
 				{
 					// FIXME: Bgr24VideoFrame outputs incorrect images.
-					LOGGER->Log(LOG_DEBUG, "Converting to 24-bit BGR video frame");
+					spdlog::debug("Converting to 24-bit BGR video frame");
 					videoFrame = new Bgr24VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 				}
 				else
 				{
-					LOGGER->Log(LOG_DEBUG, "Converting to 32-bit BGRA video frame");
+					spdlog::debug("Converting to 32-bit BGRA video frame");
 					videoFrame = new Bgra32VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 				}
 
@@ -102,7 +102,7 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 				if (FAILED(result))
 				{
 					err = "Frame conversion was unsuccessful";
-					LOGGER->Log(LOG_ERROR, err.c_str());
+					spdlog::error(err.c_str());
 					captureRunning = false;
 				}
 			}
@@ -111,14 +111,14 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 			if (FAILED(result))
 			{
 				err = "Image encoding to file was unsuccessful";
-				LOGGER->Log(LOG_ERROR, err.c_str());
+				spdlog::error(err.c_str());
 				captureRunning = false;
 			}
 
 			videoFrame->Release();
 
 			err = "";
-			LOGGER->Log(LOG_INFO, "Capture completed");
+			spdlog::info("Capture completed");
 			captureRunning = false;
 		}
 
@@ -144,20 +144,21 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 	std::vector<IDeckLinkDisplayMode*>	displayModes;
 
 	// TODO(high): update usage after adding log options
-	LOGGER->Log(LOG_INFO, "Usage: SnapShotCreator.exe -d <device id> -p <port> [OPTIONS]");
+	// TODO(high): fix format strings with {} instead of %x
+	spdlog::info("Usage: SnapShotCreator.exe -d <device id> -p <port> [OPTIONS]");
 
 
-	LOGGER->Log(LOG_INFO, "    -d <device id>:");
+	spdlog::info("    -d <device id>:");
 	if (deviceNames.empty())
 	{
-		LOGGER->Log(LOG_ERROR, "        No DeckLink devices found. Please check that Desktop Video is installed.");
+		spdlog::error("        No DeckLink devices found. Please check that Desktop Video is installed.");
 	}
 	else
 	{
 		// Loop through all available devices
 		for (size_t i = 0; i < deviceNames.size(); i++)
 		{
-			LOGGER->Log(LOG_INFO,
+			spdlog::info(
 				"       %c%2d:  %s",
 				((int)i == selectedDeviceIndex) ? '*' : ' ',
 				(int)i,
@@ -166,22 +167,22 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 		}
 	}
 
-	LOGGER->Log(LOG_INFO, "    -p <port>: (%d)", portno);
+	spdlog::info("    -p <port>: (%d)", portno);
 
-	LOGGER->Log(LOG_INFO,
+	spdlog::info(
 		"    -m <mode id>: (%s)", ((selectedDeviceIndex >= 0) && (selectedDeviceIndex < (int)deviceNames.size())) ? deviceNames[selectedDeviceIndex].c_str() : ""
 	);
 
 	// Loop through all available display modes on the delected DeckLink device
 	if (selectedDeckLinkInput == NULL)
 	{
-		LOGGER->Log(LOG_ERROR, "        No DeckLink device selected");
+		spdlog::error("        No DeckLink device selected");
 	}
 	else
 	{
 		if (supportsFormatDetection)
 		{
-			LOGGER->Log(LOG_INFO, "       %c-1:  auto detect format (default)",
+			spdlog::info("       %c-1:  auto detect format (default)",
 				(selectedDisplayModeIndex == -1) ? '*' : ' '
 			);
 		}
@@ -200,7 +201,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 
 				displayModes[i]->GetFrameRate(&frameRateDuration, &frameRateScale);
 
-				LOGGER->Log(LOG_INFO,
+				spdlog::info(
 					"       %c%2d:  %-20s \t %4li x %4li \t %.2f FPS",
 					((int)i == selectedDisplayModeIndex) ? '*' : ' ',
 					(int)i,
@@ -218,20 +219,20 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 		}
 	}
 
-	LOGGER->Log(LOG_INFO, "    -f <pixelformat>:");
+	spdlog::info("    -f <pixelformat>:");
 
 	if (selectedDeckLinkInput == NULL)
-		LOGGER->Log(LOG_ERROR, "        No DeckLink device selected");
+		spdlog::error("        No DeckLink device selected");
 
 	else if ((selectedDisplayModeIndex < -1) || (selectedDisplayModeIndex >= (int)displayModes.size()))
-		LOGGER->Log(LOG_ERROR, "        Invalid display mode selected");
+		spdlog::error("        Invalid display mode selected");
 
 	else if (selectedDisplayModeIndex == -1)
-		LOGGER->Log(LOG_INFO, "        Auto-detect mode selected");
+		spdlog::info("        Auto-detect mode selected");
 
 	else
 	{
-		LOGGER->Log(LOG_INFO, "(%s)", selectedDisplayModeName.c_str());
+		spdlog::info("(%s)", selectedDisplayModeName.c_str());
 
 		for (unsigned int i = 0; i < kSupportedPixelFormats.size(); i++)
 		{
@@ -247,7 +248,7 @@ void CaptureStills::DisplayUsage(DeckLinkInputDevice* selectedDeckLinkInput, con
 
 			if ((result == S_OK) && (displayModeSupported))
 			{
-				LOGGER->Log(LOG_INFO,
+				spdlog::info(
 					"        %2d:  %s%s",
 					i,
 					std::get<kPixelFormatString>(kSupportedPixelFormats[i]).c_str(),

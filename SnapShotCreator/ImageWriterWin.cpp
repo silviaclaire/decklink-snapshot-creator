@@ -29,6 +29,7 @@
 #include <atlstr.h>
 #include <algorithm>
 
+#include "include/spdlog/spdlog.h"
 #include "utils.h"
 #include "ImageWriter.h"
 
@@ -43,7 +44,7 @@ HRESULT ImageWriter::Initialize()
 	HRESULT result = CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&g_wicFactory));
 	if (FAILED(result))
 	{
-		fprintf(stderr, "A WIC imaging factory could not be created.\n");
+		spdlog::error("A WIC imaging factory could not be created");
 	}
 
 	return result;
@@ -82,14 +83,14 @@ HRESULT ImageWriter::WriteVideoFrameToImage(IDeckLinkVideoFrame* videoFrame, con
 	// Ensure video frame has expected pixel format
 	if (videoFrame->GetPixelFormat() != bmdFormat8BitBGRA)
 	{
-		fprintf(stderr, "Video frame is not in 8-Bit BGRA pixel format\n");
+		spdlog::error("Video frame is not in 8-Bit BGRA pixel format");
 		return E_FAIL;
 	}
 
 	videoFrame->GetBytes(&frameBytes);
 	if (frameBytes == NULL)
 	{
-		fprintf(stderr, "Could not get DeckLinkVideoFrame buffer pointer\n");
+		spdlog::error("Could not get DeckLinkVideoFrame buffer pointer");
 		result = E_OUTOFMEMORY;
 		goto bail;
 	}

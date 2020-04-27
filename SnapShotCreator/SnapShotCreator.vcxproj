@@ -168,7 +168,7 @@
     <ClInclude Include="DeckLinkInputDevice.h" />
     <ClInclude Include="exceptions.h" />
     <ClInclude Include="ImageWriter.h" />
-    <ClInclude Include="Logger.h" />
+    <ClInclude Include="include\spdlog\spdlog.h" />
     <ClInclude Include="platform.h" />
     <ClInclude Include="include\httplib.h" />
     <ClInclude Include="lib_json\json_tool.h" />
@@ -190,7 +190,6 @@
     </ClCompile>
     <ClCompile Include="DeckLinkInputDevice.cpp" />
     <ClCompile Include="ImageWriterWin.cpp" />
-    <ClCompile Include="Logger.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="platform.cpp" />
     <ClCompile Include="lib_json\json_reader.cpp" />

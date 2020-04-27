@@ -26,6 +26,7 @@
 */
 
 #include "platform.h"
+#include "include/spdlog/spdlog.h"
 
 HRESULT GetDeckLinkIterator(IDeckLinkIterator **deckLinkIterator)
 {
@@ -35,7 +36,7 @@ HRESULT GetDeckLinkIterator(IDeckLinkIterator **deckLinkIterator)
 	result = CoCreateInstance(CLSID_CDeckLinkIterator, NULL, CLSCTX_ALL, IID_IDeckLinkIterator, (void**)deckLinkIterator);
 	if (FAILED(result))
 	{
-		fprintf(stderr, "A DeckLink iterator could not be created.  The DeckLink drivers may not be installed.\n");
+		spdlog::error("A DeckLink iterator could not be created.  The DeckLink drivers may not be installed");
 	}
 
 	return result;
@@ -48,7 +49,7 @@ HRESULT GetDeckLinkVideoConversion(IDeckLinkVideoConversion **deckLinkVideoConve
 	result = CoCreateInstance(CLSID_CDeckLinkVideoConversion, NULL, CLSCTX_ALL, IID_IDeckLinkVideoConversion, (void**)deckLinkVideoConversion);
 	if (FAILED(result))
 	{
-		fprintf(stderr, "A DeckLink video conversion interface could not be created.\n");
+		spdlog::error("A DeckLink video conversion interface could not be created");
 	}
 
 	return result;
