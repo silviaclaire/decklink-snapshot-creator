@@ -171,7 +171,7 @@ int main(int argc, char* argv[])
 	std::string					initializationErrMsg = "initializing";
 
 	// Logging
-	int							logLevel = spdlog::level::debug;
+	int							logLevel = spdlog::level::info;
 	std::string					logDirectory = "";
 
 	// Get command line options
@@ -199,11 +199,17 @@ int main(int argc, char* argv[])
 	// Initialize logger
 	if ((logLevel < 0) || (logLevel >= spdlog::level::level_enum::n_levels))
 	{
-		fprintf(stderr, "You must select a log level between 0 - %d", spdlog::level::level_enum::n_levels - 1);
+		fprintf(stderr, "Invalid log level specified: %d\n", logLevel);
+		fprintf(stderr, "--log-level: \n0: trace\n1: debug\n2: info (default)\n3: warning\n4: error\n5: critical\n6: off\n");
 		return exitStatus;
 	}
 	spdlog::set_level(static_cast<spdlog::level::level_enum>(logLevel));
 	spdlog::set_pattern("%Y-%m-%d %H:%M:%S [%-8l] [thread %-5t] %v");
+	if (logDirectory.empty())
+	{
+		fprintf(stderr, "You must set a log directory\n");
+		return exitStatus;
+	}
 	try
 	{
 		auto logger = spdlog::daily_logger_mt("SnapShotCreator", logDirectory+"\\"+"SnapShotCreator.log");
@@ -211,7 +217,7 @@ int main(int argc, char* argv[])
 	}
 	catch (...)
 	{
-		fprintf(stderr, "Invalid log directory specified");
+		fprintf(stderr, "Invalid log directory specified: %s\n", logDirectory.c_str());
 		return exitStatus;
 	}
 
