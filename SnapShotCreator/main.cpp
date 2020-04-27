@@ -200,7 +200,7 @@ int main(int argc, char* argv[])
 	if ((logLevel < 0) || (logLevel >= spdlog::level::level_enum::n_levels))
 	{
 		fprintf(stderr, "Invalid log level specified: %d\n", logLevel);
-		fprintf(stderr, "--log-level: \n0: trace\n1: debug\n2: info (default)\n3: warning\n4: error\n5: critical\n6: off\n");
+		fprintf(stderr, "0: TRACE\n1: DEBUG\n2: INFO (default)\n3: WARNING\n4: ERROR\n5: CRITICAL\n6: OFF\n");
 		return exitStatus;
 	}
 	spdlog::set_level(static_cast<spdlog::level::level_enum>(logLevel));
@@ -221,13 +221,13 @@ int main(int argc, char* argv[])
 		return exitStatus;
 	}
 
-	// Print startup command
+	// Log startup command
 	for(int i = 0; i < argc; ++i)
 	{
 		usrCommand += argv[i];
 		usrCommand += " ";
 	}
-	spdlog::info("Startup command:\n{}", usrCommand);
+	spdlog::info(usrCommand);
 
 	// Basic check for commmand line options in order to start the server
 	if (!svr.is_valid())
