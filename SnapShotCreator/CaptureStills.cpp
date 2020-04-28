@@ -53,78 +53,67 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 		result = GetDeckLinkVideoConversion(&deckLinkFrameConverter);
 		if (result != S_OK)
 		{
-			err = "Failed to get DeckLink frame converter";
-			spdlog::error(err.c_str());
-			return;
+			throw std::runtime_error("Failed to get DeckLink frame converter");
 		}
 
-		while (captureRunning)
+		bool captureCancelled;
+		if (!deckLinkInput->WaitForVideoFrameArrived(&receivedVideoFrame, captureCancelled))
 		{
-			bool captureCancelled;
-			if (!deckLinkInput->WaitForVideoFrameArrived(&receivedVideoFrame, captureCancelled))
+			throw std::runtime_error("Timeout waiting for valid frame");
+		}
+
+		else if (captureCancelled)
+		{
+			throw std::runtime_error("Capture is cancelled");
+		}
+
+		else
+		{
+			filepath = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat);
+			spdlog::info("Capturing frame to {}", filepath.c_str());
+
+			if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
 			{
-				err = "Timeout waiting for valid frame";
-				spdlog::error(err.c_str());
-				captureRunning = false;
+				// Frame is already 8-bit BGRA - no conversion required
+				spdlog::debug("Frame is already 8-bit BGRA - no conversion required");
+				videoFrame = receivedVideoFrame;
+				videoFrame->AddRef();
 			}
-
-			else if (captureCancelled)
-				captureRunning = false;
-
 			else
 			{
-				filepath = ImageWriter::GetFilepath(captureDirectory, filenamePrefix, imageFormat);
-				spdlog::info("Capturing frame to {}", filepath.c_str());
-
-				if (receivedVideoFrame->GetPixelFormat() == bmdFormat8BitBGRA)
+				if (imageFormat == "jpeg")
 				{
-					// Frame is already 8-bit BGRA - no conversion required
-					spdlog::debug("Frame is already 8-bit BGRA - no conversion required");
-					videoFrame = receivedVideoFrame;
-					videoFrame->AddRef();
+					// FIXME: Bgr24VideoFrame outputs incorrect images.
+					spdlog::debug("Converting to 24-bit BGR video frame");
+					videoFrame = new Bgr24VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 				}
 				else
 				{
-					if (imageFormat == "jpeg")
-					{
-						// FIXME: Bgr24VideoFrame outputs incorrect images.
-						spdlog::debug("Converting to 24-bit BGR video frame");
-						videoFrame = new Bgr24VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
-					}
-					else
-					{
-						spdlog::debug("Converting to 32-bit BGRA video frame");
-						videoFrame = new Bgra32VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
-					}
-
-					result = deckLinkFrameConverter->ConvertFrame(receivedVideoFrame, videoFrame);
-					if (FAILED(result))
-					{
-						err = "Frame conversion was unsuccessful";
-						spdlog::error(err.c_str());
-						captureRunning = false;
-					}
+					spdlog::debug("Converting to 32-bit BGRA video frame");
+					videoFrame = new Bgra32VideoFrame(receivedVideoFrame->GetWidth(), receivedVideoFrame->GetHeight(), receivedVideoFrame->GetFlags());
 				}
 
-				result = ImageWriter::WriteVideoFrameToImage(videoFrame, filepath, imageFormat);
+				result = deckLinkFrameConverter->ConvertFrame(receivedVideoFrame, videoFrame);
 				if (FAILED(result))
 				{
-					err = "Image encoding to file was unsuccessful";
-					spdlog::error(err.c_str());
-					captureRunning = false;
+					throw std::runtime_error("Frame conversion was unsuccessful");
 				}
-
-				videoFrame->Release();
-
-				err = "";
-				spdlog::info("Capture completed");
-				captureRunning = false;
 			}
+
+			result = ImageWriter::WriteVideoFrameToImage(videoFrame, filepath, imageFormat);
+			if (FAILED(result))
+			{
+				throw std::runtime_error("Image encoding to file was unsuccessful");
+			}
+
+			videoFrame->Release();
+
+			err = "";
+			spdlog::info("Capture completed");
 		}
 	}
 	catch(const std::exception& ex)
 	{
-		// Unknown error
 		spdlog::dump_backtrace();
 		err = ex.what();
 		spdlog::error(err.c_str());
