@@ -161,45 +161,10 @@
     </Midl>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="Bgr24VideoFrame.h" />
-    <ClInclude Include="Bgra32VideoFrame.h" />
-    <ClInclude Include="CaptureStills.h" />
-    <ClInclude Include="DeckLinkAPI.h" />
-    <ClInclude Include="DeckLinkInputDevice.h" />
-    <ClInclude Include="exceptions.h" />
-    <ClInclude Include="ImageWriter.h" />
     <ClInclude Include="include\spdlog\spdlog.h" />
-    <ClInclude Include="platform.h" />
-    <ClInclude Include="include\httplib.h" />
-    <ClInclude Include="lib_json\json_tool.h" />
-    <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Bgr24VideoFrame.cpp" />
-    <ClCompile Include="Bgra32VideoFrame.cpp" />
-    <ClCompile Include="CaptureStills.cpp" />
-    <ClCompile Include="DeckLinkAPI_i.c">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-      </PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-      </PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-      </PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-      </PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="DeckLinkInputDevice.cpp" />
-    <ClCompile Include="ImageWriterWin.cpp" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="platform.cpp" />
-    <ClCompile Include="lib_json\json_reader.cpp" />
-    <ClCompile Include="lib_json\json_value.cpp" />
-    <ClCompile Include="lib_json\json_writer.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Midl Include="include\DeckLinkAPI.idl">
-      <Filter>DeckLinkAPI</Filter>
-    </Midl>
+    <ClCompile Include="main copy.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
