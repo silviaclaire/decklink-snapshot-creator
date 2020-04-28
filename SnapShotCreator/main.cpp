@@ -10,7 +10,8 @@
 #include <vector>
 
 #include "include/spdlog/spdlog.h"
-#include "include/spdlog/sinks/daily_file_sink.h"
+#include "include/spdlog/sinks/basic_file_sink.h"
+#include "utils.h"
 #include "exceptions.h"
 #include "platform.h"
 #include "ImageWriter.h"
@@ -173,6 +174,7 @@ int main(int argc, char* argv[])
 	// Logging
 	int							logLevel = spdlog::level::info;
 	std::string					logDirectory = "";
+	std::string					logFilepath = "";
 
 	// Get command line options
 	for (int i = 1; i < argc; i++)
@@ -213,8 +215,8 @@ int main(int argc, char* argv[])
 	}
 	try
 	{
-		auto logger = spdlog::daily_logger_mt("SnapShotCreator", logDirectory+"\\"+"SnapShotCreator.log");
-		spdlog::set_default_logger(logger);
+		logFilepath = logDirectory + "\\SnapShotCreator_" + CurrentDateTime("%Y%m%d%H%M%S") + ".log";
+		spdlog::set_default_logger(spdlog::basic_logger_mt("SnapShotCreator", logFilepath));
 	}
 	catch (...)
 	{
