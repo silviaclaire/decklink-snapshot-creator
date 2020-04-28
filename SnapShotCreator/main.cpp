@@ -204,7 +204,7 @@ int main(int argc, char* argv[])
 		return exitStatus;
 	}
 	spdlog::set_level(static_cast<spdlog::level::level_enum>(logLevel));
-	spdlog::set_pattern("%Y-%m-%d %H:%M:%S [%-8l] [thread %-5t] %v");
+	spdlog::set_pattern("%Y-%m-%d %H:%M:%S [%-7l] [thread %-5t] %v");
 	spdlog::enable_backtrace(32); // Store the latest 32 messages in a buffer for backtrace.
 	if (logDirectory.empty())
 	{
@@ -395,7 +395,7 @@ int main(int argc, char* argv[])
 		serverStatus = IDLE;
 		spdlog::info("Initialization completed");
 	}
-	catch (std::exception& ex)
+	catch (const std::exception& ex)
 	{
 		// Update server status and print error
 		serverStatus = INITIALIZATION_ERROR;

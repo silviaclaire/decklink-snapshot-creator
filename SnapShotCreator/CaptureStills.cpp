@@ -124,6 +124,7 @@ void CaptureStills::CreateSnapshot(DeckLinkInputDevice* deckLinkInput, const std
 	}
 	catch(const std::exception& ex)
 	{
+		// Unknown error
 		spdlog::dump_backtrace();
 		err = ex.what();
 		spdlog::error(err.c_str());
